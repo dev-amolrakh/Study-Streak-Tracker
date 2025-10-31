@@ -200,6 +200,11 @@ app.get('/', (req, res) => {
   return res.json(info);
 });
 
+// Return 204 for favicon requests to avoid 404 noise in logs when frontend isn't deployed here
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
 app.post('/goals/:id/reminder', async (req, res) => {
   try {
     const { reminderTime, enabled } = req.body;
