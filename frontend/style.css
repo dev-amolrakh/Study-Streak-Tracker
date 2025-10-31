@@ -46,7 +46,10 @@ h1 {
   justify-content: center;
   margin: 10px 0 16px;
 }
-.reminder-inline-left { display:flex; align-items:center; }
+.reminder-inline-left {
+  display: flex;
+  align-items: center;
+}
 .info-icon {
   position: relative;
   width: 28px;
@@ -70,9 +73,12 @@ h1 {
   border-radius: 8px;
   font-size: 12px;
   white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(15,23,42,0.12);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
 }
-.info-icon:hover .info-popover, .info-icon:focus .info-popover { display:block; }
+.info-icon:hover .info-popover,
+.info-icon:focus .info-popover {
+  display: block;
+}
 
 .reminder-inline-time select {
   padding: 8px 6px;
@@ -81,15 +87,51 @@ h1 {
   background: white;
   font-size: 14px;
 }
-.reminder-inline-time span.tz-label { margin-left:6px; color:var(--muted); font-size:12px; }
+.reminder-inline-time span.tz-label {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
 
-.reminder-inline-toggle { display:flex; align-items:center; gap:6px; }
-.reminder-inline-actions { display:flex; gap:8px; }
-.btn-primary.small { padding:6px 10px; background:var(--accent); color:white; border-radius:8px; border:none; cursor:pointer; }
-.btn-muted.small { padding:6px 10px; background:#f3f4f6; color:var(--muted); border-radius:8px; border:none; cursor:pointer; }
-.btn-primary.small:disabled, .btn-muted.small:disabled { opacity:0.6; cursor:default; }
+.reminder-inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.reminder-inline-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn-primary.small {
+  padding: 6px 10px;
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+.btn-muted.small {
+  padding: 6px 10px;
+  background: #f3f4f6;
+  color: var(--muted);
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+.btn-primary.small:disabled,
+.btn-muted.small:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
-.sr-only { position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden; }
+.sr-only {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
 
 .reminder-card {
   border: 1px solid #e6eef8;

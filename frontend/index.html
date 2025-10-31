@@ -28,14 +28,21 @@
       <!-- Compact inline reminder controls (one horizontal line) -->
       <section class="reminder-inline" aria-label="Reminder">
         <div class="reminder-inline-left">
-          <button class="info-icon" id="reminderInfo" aria-label="Reminder info">i
-            <span class="info-popover" role="tooltip">Set a daily time (India 12-hour) to get in-browser reminders while the app is open. Click Preview to test.</span>
+          <button
+            class="info-icon"
+            id="reminderInfo"
+            aria-label="Reminder info"
+          >
+            i
+            <span class="info-popover" role="tooltip"
+              >Set a daily time (India 12-hour) to get in-browser reminders
+              while the app is open. Click Preview to test.</span
+            >
           </button>
         </div>
         <div class="reminder-inline-time">
           <label class="sr-only" for="reminderHour">Hour</label>
-          <select id="reminderHour" aria-label="Reminder hour">
-          </select>
+          <select id="reminderHour" aria-label="Reminder hour"></select>
           <span>:</span>
           <label class="sr-only" for="reminderMinute">Minute</label>
           <select id="reminderMinute" aria-label="Reminder minute"></select>
@@ -48,11 +55,18 @@
         </div>
         <div class="reminder-inline-toggle">
           <label for="reminderToggle">Reminders</label>
-          <input id="reminderToggle" type="checkbox" role="switch" aria-checked="false" />
+          <input
+            id="reminderToggle"
+            type="checkbox"
+            role="switch"
+            aria-checked="false"
+          />
           <span id="reminderState" class="reminder-state">Disabled</span>
         </div>
         <div class="reminder-inline-actions">
-          <button id="previewReminderBtn" class="btn-muted small">Preview</button>
+          <button id="previewReminderBtn" class="btn-muted small">
+            Preview
+          </button>
           <button id="saveReminderBtn" class="btn-primary small">Save</button>
         </div>
       </section>

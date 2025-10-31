@@ -159,10 +159,10 @@ function applyStateToUI(data) {
   document.getElementById("currentGoalDay").textContent =
     computeCurrentGoalDayForState(data) || "—";
   // reminder UI: set hour/min/ampm selects and toggle
-  const hourSel = document.getElementById('reminderHour');
-  const minSel = document.getElementById('reminderMinute');
-  const ampmSel = document.getElementById('reminderAmPm');
-  const toggle = document.getElementById('reminderToggle');
+  const hourSel = document.getElementById("reminderHour");
+  const minSel = document.getElementById("reminderMinute");
+  const ampmSel = document.getElementById("reminderAmPm");
+  const toggle = document.getElementById("reminderToggle");
   if (hourSel && minSel && ampmSel) {
     if (data && data.reminderTime) setInputsFrom24h(data.reminderTime);
   }
@@ -176,21 +176,21 @@ function applyStateToUI(data) {
 
 // populate hour/min selectors (12-hour, India friendly)
 function populateTimeSelectors() {
-  const hourSel = document.getElementById('reminderHour');
-  const minSel = document.getElementById('reminderMinute');
+  const hourSel = document.getElementById("reminderHour");
+  const minSel = document.getElementById("reminderMinute");
   if (hourSel && hourSel.children.length === 0) {
     for (let h = 1; h <= 12; h++) {
-      const o = document.createElement('option');
-      o.value = String(h).padStart(2,'0');
-      o.textContent = String(h).padStart(2,'0');
+      const o = document.createElement("option");
+      o.value = String(h).padStart(2, "0");
+      o.textContent = String(h).padStart(2, "0");
       hourSel.appendChild(o);
     }
   }
   if (minSel && minSel.children.length === 0) {
     for (let m = 0; m < 60; m++) {
-      const o = document.createElement('option');
-      o.value = String(m).padStart(2,'0');
-      o.textContent = String(m).padStart(2,'0');
+      const o = document.createElement("option");
+      o.value = String(m).padStart(2, "0");
+      o.textContent = String(m).padStart(2, "0");
       minSel.appendChild(o);
     }
   }
@@ -198,33 +198,38 @@ function populateTimeSelectors() {
 
 function setInputsFrom24h(time24) {
   if (!time24) return;
-  const [hhStr, mm] = time24.split(':');
+  const [hhStr, mm] = time24.split(":");
   let hh = Number(hhStr);
-  const ampm = hh >= 12 ? 'PM' : 'AM';
+  const ampm = hh >= 12 ? "PM" : "AM";
   if (hh === 0) hh = 12;
   if (hh > 12) hh = hh - 12;
-  const hourSel = document.getElementById('reminderHour');
-  const minSel = document.getElementById('reminderMinute');
-  const ampmSel = document.getElementById('reminderAmPm');
-  if (hourSel) hourSel.value = String(hourSel.querySelector(`option[value="${String(hh).padStart(2,'0')}"]`) ? String(hh).padStart(2,'0') : String(hh));
-  if (minSel) minSel.value = mm || '00';
+  const hourSel = document.getElementById("reminderHour");
+  const minSel = document.getElementById("reminderMinute");
+  const ampmSel = document.getElementById("reminderAmPm");
+  if (hourSel)
+    hourSel.value = String(
+      hourSel.querySelector(`option[value="${String(hh).padStart(2, "0")}"]`)
+        ? String(hh).padStart(2, "0")
+        : String(hh)
+    );
+  if (minSel) minSel.value = mm || "00";
   if (ampmSel) ampmSel.value = ampm;
 }
 
 function build24hFromInputs() {
-  const hourSel = document.getElementById('reminderHour');
-  const minSel = document.getElementById('reminderMinute');
-  const ampmSel = document.getElementById('reminderAmPm');
-  if (!hourSel || !minSel || !ampmSel) return '';
+  const hourSel = document.getElementById("reminderHour");
+  const minSel = document.getElementById("reminderMinute");
+  const ampmSel = document.getElementById("reminderAmPm");
+  if (!hourSel || !minSel || !ampmSel) return "";
   let hh = Number(hourSel.value);
-  const mm = String(minSel.value).padStart(2,'0');
+  const mm = String(minSel.value).padStart(2, "0");
   const ampm = ampmSel.value;
-  if (ampm === 'AM') {
+  if (ampm === "AM") {
     if (hh === 12) hh = 0;
   } else {
     if (hh !== 12) hh = hh + 12;
   }
-  return String(hh).padStart(2,'0') + ':' + mm;
+  return String(hh).padStart(2, "0") + ":" + mm;
 }
 
 async function fetchGoals() {
@@ -818,27 +823,30 @@ async function saveReminderToServer(time, enabled) {
 }
 
 // wire reminder UI (inline controls)
-const reminderHour = document.getElementById('reminderHour');
-const reminderMinute = document.getElementById('reminderMinute');
-const reminderAmPm = document.getElementById('reminderAmPm');
-const reminderToggle = document.getElementById('reminderToggle');
-const reminderStateLabel = document.getElementById('reminderState');
-const previewReminderBtn = document.getElementById('previewReminderBtn');
-const saveReminderBtn = document.getElementById('saveReminderBtn');
+const reminderHour = document.getElementById("reminderHour");
+const reminderMinute = document.getElementById("reminderMinute");
+const reminderAmPm = document.getElementById("reminderAmPm");
+const reminderToggle = document.getElementById("reminderToggle");
+const reminderStateLabel = document.getElementById("reminderState");
+const previewReminderBtn = document.getElementById("previewReminderBtn");
+const saveReminderBtn = document.getElementById("saveReminderBtn");
 
 function updateReminderStateUI(enabled) {
   if (reminderStateLabel)
-    reminderStateLabel.textContent = enabled ? 'Enabled' : 'Disabled';
+    reminderStateLabel.textContent = enabled ? "Enabled" : "Disabled";
   if (reminderToggle)
-    reminderToggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+    reminderToggle.setAttribute("aria-checked", enabled ? "true" : "false");
 }
 
 function showNotificationPreview() {
-  if (!state) return showToast('Select a goal first');
-  if (Notification && Notification.permission !== 'granted') {
+  if (!state) return showToast("Select a goal first");
+  if (Notification && Notification.permission !== "granted") {
     Notification.requestPermission().then((perm) => {
-      if (perm === 'granted') showNotification(`Time to study ${state.goal}! Keep your streak alive 🔥`);
-      else showToast('Notification permission denied');
+      if (perm === "granted")
+        showNotification(
+          `Time to study ${state.goal}! Keep your streak alive 🔥`
+        );
+      else showToast("Notification permission denied");
     });
   } else {
     showNotification(`Time to study ${state.goal}! Keep your streak alive 🔥`);
@@ -847,8 +855,8 @@ function showNotificationPreview() {
 
 if (reminderHour && reminderMinute && reminderAmPm) {
   [reminderHour, reminderMinute, reminderAmPm].forEach((el) => {
-    el.addEventListener('change', () => {
-      if (!state) return showToast('Select a goal first');
+    el.addEventListener("change", () => {
+      if (!state) return showToast("Select a goal first");
       const t = build24hFromInputs();
       const display = `${reminderHour.value}:${reminderMinute.value} ${reminderAmPm.value}`;
       showToast(`Reminder time set to ${display}. Click Save to persist.`);
@@ -857,33 +865,40 @@ if (reminderHour && reminderMinute && reminderAmPm) {
 }
 
 if (reminderToggle) {
-  reminderToggle.addEventListener('change', (e) => {
+  reminderToggle.addEventListener("change", (e) => {
     const enabled = !!e.target.checked;
     if (!state) {
       reminderToggle.checked = !enabled;
-      return showToast('Select a goal first');
+      return showToast("Select a goal first");
     }
     updateReminderStateUI(enabled);
-    showToast(enabled ? 'Reminders enabled (click Save)' : 'Reminders disabled (click Save)');
+    showToast(
+      enabled
+        ? "Reminders enabled (click Save)"
+        : "Reminders disabled (click Save)"
+    );
   });
 }
 
 if (previewReminderBtn) {
-  previewReminderBtn.addEventListener('click', (e) => {
+  previewReminderBtn.addEventListener("click", (e) => {
     e.preventDefault();
     showNotificationPreview();
   });
 }
 
 if (saveReminderBtn) {
-  saveReminderBtn.addEventListener('click', async (e) => {
+  saveReminderBtn.addEventListener("click", async (e) => {
     e.preventDefault();
-    if (!state) return showToast('Select a goal first');
+    if (!state) return showToast("Select a goal first");
     const time = build24hFromInputs();
     const enabled = reminderToggle ? !!reminderToggle.checked : false;
-    if (enabled && Notification && Notification.permission !== 'granted') {
+    if (enabled && Notification && Notification.permission !== "granted") {
       const perm = await Notification.requestPermission();
-      if (perm !== 'granted') return showToast('Notification permission is required to enable reminders');
+      if (perm !== "granted")
+        return showToast(
+          "Notification permission is required to enable reminders"
+        );
     }
     setButtonLoading(saveReminderBtn, true);
     await saveReminderToServer(time, enabled);
