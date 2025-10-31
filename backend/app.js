@@ -20,14 +20,22 @@ const MONGO =
 
 // avoid creating multiple connections in serverless environments
 async function connectOnce() {
-  if (mongoose.connections && mongoose.connections[0] && mongoose.connections[0].readyState === 1) {
+  if (
+    mongoose.connections &&
+    mongoose.connections[0] &&
+    mongoose.connections[0].readyState === 1
+  ) {
     return;
   }
-  await mongoose.connect(MONGO, { useNewUrlParser: true, useUnifiedTopology: true });
+  await mongoose.connect(MONGO, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
 }
 
 connectOnce().catch((err) => {
-  if (process.env.NODE_ENV !== "production") console.error("Mongo connection error:", err);
+  if (process.env.NODE_ENV !== "production")
+    console.error("Mongo connection error:", err);
 });
 
 function computeStreaks(daysArr) {
@@ -163,24 +171,25 @@ app.post("/goals/:id/update-streak", async (req, res) => {
   }
 });
 
-app.get('/server-date', (req, res) => {
+app.get("/server-date", (req, res) => {
   res.json({ serverDate: new Date().toISOString() });
 });
 
 // Helpful root endpoint so visiting the deployment URL shows useful info
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   // If the client prefers HTML, send a tiny info page. Otherwise return JSON
-  const accept = req.headers && req.headers.accept ? req.headers.accept : '';
+  const accept = req.headers && req.headers.accept ? req.headers.accept : "";
   const info = {
-    name: 'Study Streak Tracker - Backend',
-    message: 'This endpoint serves the API. For API calls use /api/... routes (e.g. /api/server-date, /api/goals).',
+    name: "Study Streak Tracker - Backend",
+    message:
+      "This endpoint serves the API. For API calls use /api/... routes (e.g. /api/server-date, /api/goals).",
     endpoints: {
-      serverDate: '/api/server-date',
-      goals: '/api/goals',
-      getGoal: '/api/get-goal'
-    }
+      serverDate: "/api/server-date",
+      goals: "/api/goals",
+      getGoal: "/api/get-goal",
+    },
   };
-  if (accept.indexOf('text/html') !== -1) {
+  if (accept.indexOf("text/html") !== -1) {
     return res.send(`
       <html>
         <head><title>Study Streak Tracker API</title></head>
@@ -201,44 +210,44 @@ app.get('/', (req, res) => {
 });
 
 // Return 204 for favicon requests to avoid 404 noise in logs when frontend isn't deployed here
-app.get('/favicon.ico', (req, res) => {
+app.get("/favicon.ico", (req, res) => {
   res.status(204).end();
 });
 
-app.post('/goals/:id/reminder', async (req, res) => {
+app.post("/goals/:id/reminder", async (req, res) => {
   try {
     const { reminderTime, enabled } = req.body;
     const doc = await Streak.findById(req.params.id);
-    if (!doc) return res.status(404).json({ error: 'no goal found' });
+    if (!doc) return res.status(404).json({ error: "no goal found" });
     doc.reminderTime = reminderTime || null;
     doc.remindersEnabled = !!enabled;
     await doc.save();
     res.json(doc);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'server error' });
+    res.status(500).json({ error: "server error" });
   }
 });
 
-app.post('/goals/:id/reset', async (req, res) => {
+app.post("/goals/:id/reset", async (req, res) => {
   try {
     const doc = await Streak.findById(req.params.id);
-    if (!doc) return res.status(404).json({ error: 'no goal found' });
+    if (!doc) return res.status(404).json({ error: "no goal found" });
     doc.daysCompleted = [];
     doc.currentStreak = 0;
     await doc.save();
     res.json(doc);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'server error' });
+    res.status(500).json({ error: "server error" });
   }
 });
 
-app.post('/goals/:id/edit', async (req, res) => {
+app.post("/goals/:id/edit", async (req, res) => {
   try {
     const { goal, totalDays } = req.body;
     const doc = await Streak.findById(req.params.id);
-    if (!doc) return res.status(404).json({ error: 'no goal found' });
+    if (!doc) return res.status(404).json({ error: "no goal found" });
     if (goal) doc.goal = goal;
     if (totalDays) doc.totalDays = Number(totalDays) || doc.totalDays;
     doc.daysCompleted = (doc.daysCompleted || []).filter(
@@ -251,18 +260,18 @@ app.post('/goals/:id/edit', async (req, res) => {
     res.json(doc);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'server error' });
+    res.status(500).json({ error: "server error" });
   }
 });
 
-app.delete('/goals/:id', async (req, res) => {
+app.delete("/goals/:id", async (req, res) => {
   try {
     const doc = await Streak.findByIdAndDelete(req.params.id);
-    if (!doc) return res.status(404).json({ error: 'not found' });
+    if (!doc) return res.status(404).json({ error: "not found" });
     res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'server error' });
+    res.status(500).json({ error: "server error" });
   }
 });
 
