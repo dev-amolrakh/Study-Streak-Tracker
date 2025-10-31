@@ -724,7 +724,10 @@ async function flushSyncQueue() {
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ reminderTime: p.reminderTime, enabled: p.enabled }),
+              body: JSON.stringify({
+                reminderTime: p.reminderTime,
+                enabled: p.enabled,
+              }),
             },
             9000
           );
@@ -771,22 +774,43 @@ window.addEventListener("online", () => {
 function setupReminderScheduler() {
   // clear existing
   if (reminderIntervalId) {
-    clearInterval(reminderIntervalId);
+    clearTimeout(reminderIntervalId);
     reminderIntervalId = null;
   }
   if (!state) return;
   if (!state.remindersEnabled || !state.reminderTime) return;
   // ensure permission
-  if (Notification && Notification.permission !== "granted") {
-    Notification.requestPermission();
+  if (!("Notification" in window)) {
+    console.warn("Notifications are not supported in this browser");
+    return;
   }
-  // check every minute
-  reminderIntervalId = setInterval(() => {
+
+  // Request permission and only schedule reminders if granted. Use the
+  // promise result so we don't silently fail when permission is denied.
+  const ensurePermission = () => {
+    return new Promise((resolve) => {
+      try {
+        if (Notification.permission === "granted") return resolve(true);
+        Notification.requestPermission()
+          .then((perm) => {
+            resolve(perm === "granted");
+          })
+          .catch(() => resolve(false));
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  };
+
+  const checkReminder = () => {
     try {
       const now = new Date();
-      const hhmm = now.toTimeString().slice(0, 5); // 'HH:MM'
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const hhmm = `${hh}:${mm}`; // 'HH:MM'
+      // debug log (useful during development)
+      // console.debug('reminder check', hhmm, state.reminderTime);
       if (hhmm === state.reminderTime) {
-        // show notification
         showNotification(
           `Time to study ${state.goal}! Keep your streak alive 🔥`
         );
@@ -794,7 +818,68 @@ function setupReminderScheduler() {
     } catch (e) {
       console.error("reminder tick", e);
     }
-  }, 60 * 1000);
+  };
+
+  ensurePermission().then((granted) => {
+    if (!granted) {
+      console.warn("Notification permission not granted; reminders disabled");
+      return;
+    }
+
+    // Schedule the next occurrence precisely using setTimeout. This computes
+    // the milliseconds until the target HH:MM (today or tomorrow) and sets a
+    // single timeout that fires exactly at that time, then reschedules for the
+    // next day. This avoids the latency introduced by minute polling.
+    const scheduleNext = () => {
+      try {
+        if (!state || !state.remindersEnabled || !state.reminderTime) return;
+        const now = new Date();
+        const parts = String(state.reminderTime).split(":");
+        const targetHour = Number(parts[0]);
+        const targetMin = Number(parts[1]);
+        if (!Number.isFinite(targetHour) || !Number.isFinite(targetMin)) return;
+        let target = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          targetHour,
+          targetMin,
+          0,
+          0
+        );
+        if (target <= now) {
+          // schedule for next day
+          target.setDate(target.getDate() + 1);
+        }
+        const ms = target.getTime() - now.getTime();
+        // clear existing just in case
+        if (reminderIntervalId) {
+          clearTimeout(reminderIntervalId);
+          reminderIntervalId = null;
+        }
+        reminderIntervalId = setTimeout(() => {
+          try {
+            // re-check state before firing
+            if (state && state.remindersEnabled && state.reminderTime) {
+              // Show the notification
+              showNotification(
+                `Time to study ${state.goal}! Keep your streak alive 🔥`
+              );
+            }
+          } catch (e) {
+            console.error("reminder fire error", e);
+          }
+          // schedule next occurrence (next day)
+          scheduleNext();
+        }, ms);
+      } catch (e) {
+        console.error("scheduleNext error", e);
+      }
+    };
+
+    // kick off
+    scheduleNext();
+  });
 }
 
 function showNotification(text) {
