@@ -1747,12 +1747,81 @@ async function markTodayForGoal(goalId, btn, goalObj) {
 populateTimeSelectors();
 fetchGoals();
 
-// register service worker for offline caching if available
-if ("serviceWorker" in navigator) {
+// --- Service worker, Notifications and Add to Home Screen (A2HS) ---
+let _deferredInstallPrompt = null;
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker
-    .register("/sw.js")
-    .then(() => {
-      console.log("Service worker registered");
+    .register('/service-worker.js')
+    .then((registration) => {
+      console.log('Service worker registered', registration);
+
+      // Request Notification permission and show a confirmation notification
+      if ('Notification' in window) {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            const icon = 'https://via.placeholder.com/192.png?text=Streak';
+            // Prefer showing via service worker when available (more reliable)
+            try {
+              if (registration && registration.showNotification) {
+                registration.showNotification('Notifications enabled!', {
+                  body: 'Daily reminders are enabled. You will receive notifications.',
+                  icon,
+                });
+              } else {
+                // Fallback: use the Notification constructor in-page
+                new Notification('Notifications enabled!', {
+                  body: 'Daily reminders are enabled. You will receive notifications.',
+                  icon,
+                });
+              }
+            } catch (e) {
+              console.warn('Notification display failed', e);
+            }
+          }
+        });
+      }
     })
-    .catch((err) => console.warn("SW register failed", err));
+    .catch((err) => console.warn('SW register failed', err));
 }
+
+// Handle beforeinstallprompt to show custom "Add to Home Screen" UI
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  const btn = document.getElementById('installBtn');
+  if (btn) {
+    btn.classList.add('show');
+    btn.setAttribute('aria-hidden', 'false');
+    const onClick = async () => {
+      btn.disabled = true;
+      try {
+        await _deferredInstallPrompt.prompt();
+        const choice = await _deferredInstallPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          console.log('User accepted the A2HS prompt');
+          btn.classList.remove('show');
+          btn.setAttribute('aria-hidden', 'true');
+        } else {
+          console.log('User dismissed the A2HS prompt');
+          btn.disabled = false;
+        }
+      } catch (err) {
+        console.warn('A2HS prompt error', err);
+        btn.disabled = false;
+      }
+      _deferredInstallPrompt = null;
+    };
+    btn.addEventListener('click', onClick, { once: true });
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  // Hide the install UI, app is installed
+  const btn = document.getElementById('installBtn');
+  if (btn) {
+    btn.classList.remove('show');
+    btn.setAttribute('aria-hidden', 'true');
+  }
+  console.log('PWA was installed');
+});
