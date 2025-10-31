@@ -796,6 +796,12 @@ async function fetchGoals() {
     }
     // cache fetched goals
     saveCache(state || null);
+    // render compact goal cards in the right panel
+    try {
+      renderGoalCards();
+    } catch (e) {
+      /* noop if UI not ready */
+    }
   } catch (err) {
     console.error("fetchGoals error", err);
     showToast("Failed to load goals from server; offline mode enabled.");
@@ -805,6 +811,9 @@ async function fetchGoals() {
       goals = [cached];
       populateGoalSelect();
       applyStateToUI(cached);
+      try {
+        renderGoalCards();
+      } catch (e) {}
     }
   }
 }
@@ -1567,6 +1576,151 @@ if (saveReminderBtn) {
 }
 
 // call init
+// --- Right-side panel rendering & interactions ---
+function renderGoalCards() {
+  const container = document.getElementById("rightPanelCards");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!Array.isArray(goals) || goals.length === 0) {
+    container.innerHTML =
+      '<div style="color: var(--muted); padding:12px;">No goals yet</div>';
+    return;
+  }
+  for (const g of goals) {
+    const card = document.createElement("div");
+    card.className = "goal-card";
+    card.dataset.id = g._id || "";
+
+    // Title (top)
+    const title = document.createElement("div");
+    title.className = "goal-title";
+    title.textContent = g.goal || "Untitled";
+
+    // Big streak number (center)
+    const streakWrap = document.createElement("div");
+    streakWrap.className = "streak-big";
+    const sicon = document.createElement("span");
+    sicon.className = "streak-icon";
+    sicon.textContent = "🔥";
+    const sNum = document.createElement("span");
+    sNum.textContent = String(g.currentStreak || 0);
+    streakWrap.appendChild(sicon);
+    streakWrap.appendChild(sNum);
+
+    // small progress text
+    const progress = document.createElement("div");
+    progress.className = "goal-progress";
+    progress.textContent = `${(g.daysCompleted || []).length}/${
+      g.totalDays || 30
+    } days`;
+
+    // bottom action row
+    const actionRow = document.createElement("div");
+    actionRow.className = "goal-card-right";
+
+    const todayIdx = computeCurrentGoalDayForState(g);
+    const isMarkedToday =
+      (g.daysCompleted || []).includes(todayIdx) && todayIdx !== 0;
+
+    const btn = document.createElement("button");
+    btn.className = "mark-today-btn";
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Mark today as completed");
+    if (isMarkedToday || todayIdx === 0) {
+      const chk = document.createElement("span");
+      chk.className = "checkmark";
+      chk.textContent = "✓";
+      btn.appendChild(chk);
+      btn.disabled = true;
+      if (todayIdx === 0) btn.title = "Goal hasn't started yet";
+    } else {
+      btn.textContent = "Mark Today";
+      btn.addEventListener("click", () => markTodayForGoal(g._id, btn, g));
+    }
+
+    actionRow.appendChild(btn);
+
+    card.appendChild(title);
+    card.appendChild(streakWrap);
+    card.appendChild(progress);
+    card.appendChild(actionRow);
+
+    container.appendChild(card);
+  }
+}
+
+async function markTodayForGoal(goalId, btn, goalObj) {
+  try {
+    if (!goalId) return showToast("No goal id");
+    // compute day to mark
+    const day = computeCurrentGoalDayForState(
+      goalObj || goals.find((x) => x._id === goalId)
+    );
+    if (!day || day === 0) return showToast("Goal hasn't started yet");
+    // show spinner
+    btn.disabled = true;
+    btn.innerHTML = "";
+    const spinner = document.createElement("span");
+    spinner.className = "card-spinner";
+    btn.appendChild(spinner);
+
+    // Attempt server call
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${goalId}/update-streak`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day, mark: true }),
+      },
+      9000
+    );
+    if (!res.ok) {
+      // offline or server error -> enqueue and optimistic update
+      enqueueSync({
+        type: "toggle_day",
+        payload: { id: goalId, day, mark: true },
+      });
+      showToast("Queued — will sync when online");
+      // optimistic: swap to checkmark
+      btn.innerHTML = "";
+      const chk = document.createElement("span");
+      chk.className = "checkmark";
+      chk.textContent = "✓";
+      btn.appendChild(chk);
+      // refresh local list after a brief delay
+      setTimeout(() => fetchGoals().catch(() => {}), 600);
+      return;
+    }
+    // success
+    const js = await res.json().catch(() => null);
+    // visual success: replace spinner with checkmark
+    btn.innerHTML = "";
+    const chk = document.createElement("span");
+    chk.className = "checkmark";
+    chk.textContent = "✓";
+    btn.appendChild(chk);
+    // refresh goals from server to reflect updated counts
+    setTimeout(() => fetchGoals().catch(() => {}), 450);
+  } catch (err) {
+    console.error("markToday error", err);
+    enqueueSync({
+      type: "toggle_day",
+      payload: {
+        id: goalId,
+        day: computeCurrentGoalDayForState(goalObj || {}),
+        mark: true,
+      },
+    });
+    btn.innerHTML = "";
+    const chk = document.createElement("span");
+    chk.className = "checkmark";
+    chk.textContent = "✓";
+    btn.appendChild(chk);
+    showToast("Action queued — will sync when online");
+    setTimeout(() => fetchGoals().catch(() => {}), 500);
+  }
+}
+
 populateTimeSelectors();
 fetchGoals();
 

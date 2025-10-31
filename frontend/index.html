@@ -14,122 +14,150 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="container">
-      <h1>Study Streak Tracker</h1>
+    <div class="app-grid">
+      <main class="container">
+        <h1>Study Streak Tracker</h1>
 
-      <section class="goal-setup">
-        <select id="goalSelect"></select>
-        <button id="deleteGoalBtn" class="muted">Delete Goal</button>
-        <input id="goalInput" type="text" placeholder="e.g., DSA for 1 month" />
-        <input id="totalDaysInput" type="number" min="1" max="365" value="30" />
-        <button id="saveGoalBtn">Save Goal</button>
-        <button id="editGoalBtn" class="muted">Edit Goal</button>
-      </section>
-
-      <!-- Compact inline reminder controls (one horizontal line) -->
-      <section class="reminder-inline" aria-label="Reminder">
-        <div class="reminder-inline-left">
-          <button
-            class="info-icon"
-            id="reminderInfo"
-            aria-label="Reminder info"
-          >
-            i
-            <span class="info-popover" role="tooltip"
-              >Set a daily time (India 12-hour) to get in-browser reminders
-              while the app is open. Click Preview to test.</span
-            >
-          </button>
-        </div>
-        <div class="reminder-inline-time">
-          <label class="sr-only" for="reminderHour">Hour</label>
-          <select id="reminderHour" aria-label="Reminder hour"></select>
-          <span>:</span>
-          <label class="sr-only" for="reminderMinute">Minute</label>
-          <select id="reminderMinute" aria-label="Reminder minute"></select>
-          <label class="sr-only" for="reminderAmPm">AM PM</label>
-          <select id="reminderAmPm" aria-label="AM or PM">
-            <option value="AM">AM</option>
-            <option value="PM">PM</option>
-          </select>
-          <span class="tz-label">(IST)</span>
-        </div>
-        <div class="reminder-inline-toggle">
-          <label for="reminderToggle">Reminders</label>
+        <section class="goal-setup">
+          <select id="goalSelect"></select>
+          <button id="deleteGoalBtn" class="muted">Delete Goal</button>
           <input
-            id="reminderToggle"
-            type="checkbox"
-            role="switch"
-            aria-checked="false"
+            id="goalInput"
+            type="text"
+            placeholder="e.g., DSA for 1 month"
           />
-          <span id="reminderState" class="reminder-state">Disabled</span>
-        </div>
-        <div class="reminder-inline-actions">
-          <button id="previewReminderBtn" class="btn-muted small">
-            Preview
-          </button>
-          <button id="saveReminderBtn" class="btn-primary small">Save</button>
-        </div>
-      </section>
+          <input
+            id="totalDaysInput"
+            type="number"
+            min="1"
+            max="365"
+            value="30"
+          />
+          <button id="saveGoalBtn">Save Goal</button>
+          <button id="editGoalBtn" class="muted">Edit Goal</button>
+        </section>
 
-      <section class="streak-row">
-        <div class="streak-info">
-          <div class="streak-large">
-            🔥 Current Streak: <span id="currentStreak">0</span> days
-          </div>
-          <div id="quote" class="quote">
-            Keep going — small steps every day.
-          </div>
-          <div class="stats">
-            <span>Total Completed: <strong id="totalCompleted">0</strong></span>
-            <span>Best: <strong id="bestStreak">0</strong></span>
-            <span>Remaining: <strong id="remainingDays">30</strong></span>
-            <span>Points: <strong id="points">0</strong></span>
-            <span>Level: <strong id="level">Beginner</strong></span>
-          </div>
-          <div class="badges" aria-live="polite">
-            Badges: <span id="badgesList">—</span>
-            <!-- Badges button moved below the streak controls (see bottom of page) -->
-          </div>
-          <div class="goal-meta">
-            <small
-              >Start: <span id="startDateLabel">—</span> · Current goal day:
-              <span id="currentGoalDay">—</span></small
+        <!-- Compact inline reminder controls (one horizontal line) -->
+        <section class="reminder-inline" aria-label="Reminder">
+          <div class="reminder-inline-left">
+            <button
+              class="info-icon"
+              id="reminderInfo"
+              aria-label="Reminder info"
             >
+              i
+              <span class="info-popover" role="tooltip"
+                >Set a daily time (India 12-hour) to get in-browser reminders
+                while the app is open. Click Preview to test.</span
+              >
+            </button>
           </div>
-          <div class="controls">
-            <button id="resetBtn">Reset Streak</button>
-            <span
-              id="syncIcon"
-              class="sync-icon"
-              title="Sync status"
-              aria-hidden="true"
-            ></span>
+          <div class="reminder-inline-time">
+            <label class="sr-only" for="reminderHour">Hour</label>
+            <select id="reminderHour" aria-label="Reminder hour"></select>
+            <span>:</span>
+            <label class="sr-only" for="reminderMinute">Minute</label>
+            <select id="reminderMinute" aria-label="Reminder minute"></select>
+            <label class="sr-only" for="reminderAmPm">AM PM</label>
+            <select id="reminderAmPm" aria-label="AM or PM">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+            <span class="tz-label">(IST)</span>
           </div>
-        </div>
+          <div class="reminder-inline-toggle">
+            <label for="reminderToggle">Reminders</label>
+            <input
+              id="reminderToggle"
+              type="checkbox"
+              role="switch"
+              aria-checked="false"
+            />
+            <span id="reminderState" class="reminder-state">Disabled</span>
+          </div>
+          <div class="reminder-inline-actions">
+            <button id="previewReminderBtn" class="btn-muted small">
+              Preview
+            </button>
+            <button id="saveReminderBtn" class="btn-primary small">Save</button>
+          </div>
+        </section>
 
-        <div class="canvas-wrap">
-          <canvas id="progressCanvas" width="160" height="160"></canvas>
-        </div>
-      </section>
+        <section class="streak-row">
+          <div class="streak-info">
+            <div class="streak-large">
+              🔥 Current Streak: <span id="currentStreak">0</span> days
+            </div>
+            <div id="quote" class="quote">
+              Keep going — small steps every day.
+            </div>
+            <div class="stats">
+              <span
+                >Total Completed: <strong id="totalCompleted">0</strong></span
+              >
+              <span>Best: <strong id="bestStreak">0</strong></span>
+              <span>Remaining: <strong id="remainingDays">30</strong></span>
+              <span>Points: <strong id="points">0</strong></span>
+              <span>Level: <strong id="level">Beginner</strong></span>
+            </div>
+            <div class="badges" aria-live="polite">
+              Badges: <span id="badgesList">—</span>
+              <!-- Badges button moved below the streak controls (see bottom of page) -->
+            </div>
+            <div class="goal-meta">
+              <small
+                >Start: <span id="startDateLabel">—</span> · Current goal day:
+                <span id="currentGoalDay">—</span></small
+              >
+            </div>
+            <div class="controls">
+              <button id="resetBtn">Reset Streak</button>
+              <span
+                id="syncIcon"
+                class="sync-icon"
+                title="Sync status"
+                aria-hidden="true"
+              ></span>
+            </div>
+          </div>
 
-      <section class="calendar">
-        <div id="calendarGrid" class="grid"></div>
-      </section>
-      <!-- Badges action area placed below the streak/calendar controls -->
-      <section class="badges-actions">
-        <div class="badges-actions-inner">
-          <button id="openBadgesBtn" class="badges-open" aria-haspopup="dialog">
-            Show Badges
-          </button>
-          <div
-            id="claimedBadgesContainer"
-            class="claimed-badges-large"
-            aria-hidden="false"
-          ></div>
+          <div class="canvas-wrap">
+            <canvas id="progressCanvas" width="160" height="160"></canvas>
+          </div>
+        </section>
+
+        <section class="calendar">
+          <div id="calendarGrid" class="grid"></div>
+        </section>
+        <!-- Badges action area placed below the streak/calendar controls -->
+        <section class="badges-actions">
+          <div class="badges-actions-inner">
+            <button
+              id="openBadgesBtn"
+              class="badges-open"
+              aria-haspopup="dialog"
+            >
+              Show Badges
+            </button>
+            <div
+              id="claimedBadgesContainer"
+              class="claimed-badges-large"
+              aria-hidden="false"
+            ></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Right-side compact goal cards panel -->
+      <aside id="rightPanel" class="right-panel" aria-label="Goals summary">
+        <header class="right-panel-header">
+          <h2>Goals</h2>
+        </header>
+        <div id="rightPanelCards" class="right-panel-cards">
+          <!-- cards rendered by script.js -->
         </div>
-      </section>
-    </main>
+      </aside>
+    </div>
 
     <!-- Badges modal -->
     <div
