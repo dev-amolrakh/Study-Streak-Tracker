@@ -50,6 +50,38 @@ function pickQuote() {
   return QUOTES[Math.floor(Math.random() * QUOTES.length)];
 }
 
+// Badge definitions used by UI logic (keep in sync with backend BADGES)
+const BADGE_DEFS = [
+  { id: "day-1", days: 1 },
+  { id: "7-day", days: 7 },
+  { id: "15-day", days: 15 },
+  { id: "30-day", days: 30 },
+  { id: "60-day", days: 60 },
+  { id: "100-day", days: 100 },
+];
+
+function updateBadgeIndicator() {
+  if (!openBadgesBtn) return;
+  const current =
+    state && Number(state.currentStreak) ? Number(state.currentStreak) : 0;
+  const claimedSet = new Set(
+    state && state.claimedBadges ? state.claimedBadges : []
+  );
+  // determine if there is any badge the user is eligible for but hasn't claimed yet
+  const hasNew = BADGE_DEFS.some(
+    (b) => current >= b.days && !claimedSet.has(b.id)
+  );
+  const existing = openBadgesBtn.querySelector(".badge-indicator");
+  if (hasNew && !existing) {
+    const dot = document.createElement("span");
+    dot.className = "badge-indicator";
+    dot.setAttribute("aria-hidden", "true");
+    openBadgesBtn.appendChild(dot);
+  } else if (!hasNew && existing) {
+    existing.remove();
+  }
+}
+
 function renderCalendar(totalDays, daysCompleted = []) {
   calendarGrid.innerHTML = "";
   // compute the current goal day index relative to startDate (if available)
@@ -184,6 +216,12 @@ function applyStateToUI(data) {
   }
   // (re)start reminder scheduler if enabled
   setupReminderScheduler();
+  // update the badges indicator on the Show Badges button
+  try {
+    updateBadgeIndicator();
+  } catch (e) {
+    console.warn("badge indicator error", e);
+  }
 }
 
 // ----- Badges modal and interactions -----
@@ -441,6 +479,11 @@ function renderBadgesModal(items) {
               }
               btn.remove();
               updateClaimedBadgesUI(state.claimedBadges || []);
+              try {
+                updateBadgeIndicator();
+              } catch (e) {
+                console.warn("badge indicator error", e);
+              }
               showToast("Claim queued — will sync when online");
               return;
             }
@@ -461,6 +504,11 @@ function renderBadgesModal(items) {
           }
           btn.remove();
           updateClaimedBadgesUI(state.claimedBadges || []);
+          try {
+            updateBadgeIndicator();
+          } catch (e) {
+            console.warn("badge indicator error", e);
+          }
           showToast("Badge claimed!");
         } catch (err) {
           console.error("claim err", err);
@@ -484,6 +532,11 @@ function renderBadgesModal(items) {
           }
           btn.remove();
           updateClaimedBadgesUI(state.claimedBadges || []);
+          try {
+            updateBadgeIndicator();
+          } catch (e) {
+            console.warn("badge indicator error", e);
+          }
           showToast("Claim queued — will sync when online");
         }
       });
@@ -926,6 +979,11 @@ async function toggleDay(day, node) {
     updateCanvas(
       ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
     );
+    try {
+      updateBadgeIndicator();
+    } catch (e) {
+      console.warn("badge indicator error", e);
+    }
     flashSyncIcon();
   } catch (err) {
     console.error(err);
