@@ -25,6 +25,7 @@ Testing with Vercel locally
 - Install the Vercel CLI and run `vercel dev` in the project root. Ensure `MONGO_URI` is set in your environment or via a `.env` file (Vercel CLI will pick it up if you set it locally). Example:
 
   # PowerShell example
+
   $env:MONGO_URI = "<your-mongo-uri>"; vercel dev
 
 Deployment notes
@@ -33,5 +34,6 @@ Deployment notes
 - The API endpoints are reachable under `/api/*`.
 
 If you want I can:
+
 - Remove the hard-coded fallback connection string and fail fast when `MONGO_URI` is missing (recommended for security),
 - Add automated tests or a small health-check endpoint for readiness monitoring.
