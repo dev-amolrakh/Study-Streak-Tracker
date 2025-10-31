@@ -1454,6 +1454,29 @@ function setupReminderScheduler() {
 function showNotification(text) {
   if (!("Notification" in window)) return;
   if (Notification.permission === "granted") {
+    // Prefer showing notifications via the service worker registration when
+    // available. This tends to work better when the page is backgrounded.
+    try {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .getRegistration()
+          .then((reg) => {
+            if (reg && reg.showNotification) {
+              reg.showNotification("Study Reminder", { body: text, icon: "" });
+              return;
+            }
+            // fallback to window Notification
+            new Notification("Study Reminder", { body: text, icon: "" });
+          })
+          .catch(() => {
+            // on error fallback to window Notification
+            new Notification("Study Reminder", { body: text, icon: "" });
+          });
+        return;
+      }
+    } catch (e) {
+      // best-effort: continue to fallback
+    }
     new Notification("Study Reminder", { body: text, icon: "" });
   }
 }
