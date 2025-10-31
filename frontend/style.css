@@ -932,3 +932,182 @@ select:focus {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ---------------------------
+   Mobile responsive tweaks
+   - Make right panel appear above main on small screens and show only the first goal card as a compact top summary
+   - Improve grid and canvas sizing for small viewports
+   - Tweak paddings, stacking and touch targets
+   --------------------------- */
+@media (max-width: 900px) {
+  .canvas-wrap {
+    width: 120px;
+    height: 120px;
+  }
+  .streak-large {
+    font-size: 18px;
+  }
+  .stats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 700px) {
+  /* Stack main and aside into a single column layout (already handled) but
+     bring a compact goal summary to the top by visually reordering the
+     right panel and showing only the first card. This doesn't change DOM.
+  */
+  .app-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Move the right panel visually above main and make it full-width */
+  .right-panel {
+    order: -1; /* appear before the main content */
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+
+  .right-panel-header h2 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    text-align: left;
+  }
+
+  /* Make cards stretch and use full width for the compact summary */
+  .right-panel-cards {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  /* Show all goal cards in a two-column grid on small screens so every card
+     is visible and each row contains two cards. Keep cards compact and
+     vertically stacked inside each card. */
+  .right-panel-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  .right-panel-cards .goal-card {
+    width: 100%;
+    height: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .right-panel-cards .goal-card .goal-card-left {
+    align-items: center;
+  }
+
+  .goal-title {
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.08;
+  }
+
+  /* Make calendar more compact and touch friendly */
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .day {
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  /* Scale down the circular progress slightly */
+  .canvas-wrap {
+    width: 120px;
+    height: 120px;
+  }
+  .canvas-wrap canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Smaller claimed badges strip */
+  .claimed-badges-large img {
+    width: 72px;
+    height: 72px;
+  }
+
+  .badges-actions {
+    padding: 0 12px;
+  }
+
+  /* Stack goal setup controls full width */
+  .goal-setup {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .goal-setup input[type="text"] {
+    width: 100%;
+  }
+
+  /* Make reminder inline controls stack nicely */
+  .reminder-inline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .reminder-inline-time {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  /* Keep buttons and touch targets comfortably sized */
+  .mark-today-btn,
+  .goal-setup button,
+  .badges-open {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  /* Ensure badges modal fits smaller screens */
+  .badges-modal-panel {
+    width: 96%;
+    padding: 12px;
+  }
+}
+
+/* Place visible app title above goal cards on small screens by adding a
+   pseudo-element to the right panel. Keep the original H1 available to
+   screen readers by moving it off-screen instead of display:none. */
+@media (max-width: 700px) {
+  .container h1 {
+    /* keep for accessibility but hide visually (screen-reader only) */
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  /* Centered visible title above the goal cards (outside of any card).
+     It's implemented as a pseudo-element on the right panel so it appears
+     above the cards when the panel is stacked on mobile. */
+  .right-panel::before {
+    content: "Study Streak Tracker";
+    display: block;
+    width: 100%;
+    font-size: 20px;
+    font-weight: 700;
+    color: #071033;
+    margin: 0 0 12px 0;
+    text-align: center; /* center the title above the cards */
+    font-family: inherit;
+    line-height: 1.1;
+  }
+}
