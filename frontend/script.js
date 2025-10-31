@@ -1,0 +1,907 @@
+const API_BASE = (() => {
+  // allow overriding via env-like global for easier local testing
+  if (window.__API_BASE__) return window.__API_BASE__;
+  return "http://localhost:5000";
+})();
+
+const goalSelect = document.getElementById("goalSelect");
+const deleteGoalBtn = document.getElementById("deleteGoalBtn");
+const goalInput = document.getElementById("goalInput");
+const totalDaysInput = document.getElementById("totalDaysInput");
+const saveGoalBtn = document.getElementById("saveGoalBtn");
+const editGoalBtn = document.getElementById("editGoalBtn");
+const calendarGrid = document.getElementById("calendarGrid");
+const currentStreakEl = document.getElementById("currentStreak");
+const bestStreakEl = document.getElementById("bestStreak");
+const totalCompletedEl = document.getElementById("totalCompleted");
+const remainingDaysEl = document.getElementById("remainingDays");
+const quoteEl = document.getElementById("quote");
+const resetBtn = document.getElementById("resetBtn");
+const canvas = document.getElementById("progressCanvas");
+const ctx = canvas.getContext("2d");
+
+let state = null;
+let goals = [];
+let cachedGoals = null; // in-memory cache
+const SYNC_QUEUE_KEY = "sst_sync_queue";
+const CACHE_KEY = "sst_cache";
+let lastServerDate = null; // ISO string from server
+let reminderIntervalId = null;
+
+const QUOTES = [
+  "Keep going — consistency beats intensity.",
+  "Small steps every day lead to huge results.",
+  "You're building a habit, one day at a time.",
+  "Progress, not perfection.",
+  "The hardest part is showing up — you're doing it.",
+];
+
+function pickQuote() {
+  return QUOTES[Math.floor(Math.random() * QUOTES.length)];
+}
+
+function renderCalendar(totalDays, daysCompleted = []) {
+  calendarGrid.innerHTML = "";
+  // compute the current goal day index relative to startDate (if available)
+  let todayIndex = 0;
+  try {
+    if (state && state.startDate) {
+      // startDate is stored as YYYY-MM-DD in the model
+      const start = new Date(state.startDate + "T00:00:00");
+      const today = new Date();
+      // normalize to midnight to avoid timezone hour issues
+      const startMid = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate()
+      );
+      const todayMid = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      const diff = Math.floor((todayMid - startMid) / 86400000) + 1; // day 1 is start date
+      if (diff >= 1) todayIndex = Math.min(diff, totalDays || 30);
+      else todayIndex = 0; // start date is in the future
+    } else {
+      // fallback: use current day-of-month (best-effort)
+      todayIndex = Math.min(new Date().getDate(), totalDays || 30);
+    }
+  } catch (e) {
+    todayIndex = Math.min(new Date().getDate(), totalDays || 30);
+  }
+  for (let i = 1; i <= totalDays; i++) {
+    const d = document.createElement("div");
+    d.className = "day" + (totalDays > 60 ? " small" : "");
+    d.textContent = i;
+    d.dataset.day = i;
+    if (daysCompleted.includes(i)) d.classList.add("completed");
+    // disable future days (relative to goal start)
+    if (todayIndex === 0) {
+      // if start is in future, disable all days
+      d.classList.add("disabled");
+    } else if (i > todayIndex) d.classList.add("disabled");
+    d.addEventListener("click", () => toggleDay(i, d));
+    calendarGrid.appendChild(d);
+  }
+}
+
+// compute current goal day relative to startDate (1-based), or 0 if start is in future
+function computeCurrentGoalDayForState(s) {
+  if (!s) return 0;
+  const totalDays = s.totalDays || 30;
+  try {
+    if (s.startDate) {
+      const start = new Date(s.startDate + "T00:00:00");
+      const today = new Date();
+      const startMid = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate()
+      );
+      const todayMid = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      const diff = Math.floor((todayMid - startMid) / 86400000) + 1;
+      if (diff >= 1) return Math.min(diff, totalDays);
+      return 0;
+    }
+    return Math.min(new Date().getDate(), totalDays);
+  } catch (e) {
+    return Math.min(new Date().getDate(), totalDays);
+  }
+}
+
+async function fetchGoal() {
+  // deprecated: keep for backward compatibility
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/get-goal`, {}, 8000);
+    const data = await res.json();
+    state = data;
+    if (!data) {
+      renderCalendar(30, []);
+      remainingDaysEl.textContent = 30;
+      return;
+    }
+    applyStateToUI(data);
+  } catch (err) {
+    console.error("fetchGoal error", err);
+    showToast("Unable to fetch latest goal; using local data if available.");
+    // try cache
+    const cached = loadCache();
+    if (cached) applyStateToUI(cached);
+  }
+}
+
+function applyStateToUI(data) {
+  state = data;
+  goalInput.value = data.goal || "";
+  totalDaysInput.value = data.totalDays || 30;
+  currentStreakEl.textContent = data.currentStreak || 0;
+  bestStreakEl.textContent = data.bestStreak || 0;
+  totalCompletedEl.textContent = (data.daysCompleted || []).length;
+  remainingDaysEl.textContent =
+    (data.totalDays || 30) - (data.daysCompleted || []).length;
+  quoteEl.textContent = pickQuote();
+  renderCalendar(data.totalDays || 30, data.daysCompleted || []);
+  updateCanvas(
+    ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
+  );
+  // rewards UI
+  document.getElementById("points").textContent = data.points || 0;
+  document.getElementById("level").textContent = data.level || "Beginner";
+  const badgesEl = document.getElementById("badgesList");
+  badgesEl.textContent =
+    data.badges && data.badges.length ? data.badges.join(", ") : "—";
+  document.getElementById("startDateLabel").textContent = data.startDate || "—";
+  document.getElementById("currentGoalDay").textContent =
+    computeCurrentGoalDayForState(data) || "—";
+  // reminder UI: set hour/min/ampm selects and toggle
+  const hourSel = document.getElementById('reminderHour');
+  const minSel = document.getElementById('reminderMinute');
+  const ampmSel = document.getElementById('reminderAmPm');
+  const toggle = document.getElementById('reminderToggle');
+  if (hourSel && minSel && ampmSel) {
+    if (data && data.reminderTime) setInputsFrom24h(data.reminderTime);
+  }
+  if (toggle) {
+    toggle.checked = !!data.remindersEnabled;
+    updateReminderStateUI(!!data.remindersEnabled);
+  }
+  // (re)start reminder scheduler if enabled
+  setupReminderScheduler();
+}
+
+// populate hour/min selectors (12-hour, India friendly)
+function populateTimeSelectors() {
+  const hourSel = document.getElementById('reminderHour');
+  const minSel = document.getElementById('reminderMinute');
+  if (hourSel && hourSel.children.length === 0) {
+    for (let h = 1; h <= 12; h++) {
+      const o = document.createElement('option');
+      o.value = String(h).padStart(2,'0');
+      o.textContent = String(h).padStart(2,'0');
+      hourSel.appendChild(o);
+    }
+  }
+  if (minSel && minSel.children.length === 0) {
+    for (let m = 0; m < 60; m++) {
+      const o = document.createElement('option');
+      o.value = String(m).padStart(2,'0');
+      o.textContent = String(m).padStart(2,'0');
+      minSel.appendChild(o);
+    }
+  }
+}
+
+function setInputsFrom24h(time24) {
+  if (!time24) return;
+  const [hhStr, mm] = time24.split(':');
+  let hh = Number(hhStr);
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  if (hh === 0) hh = 12;
+  if (hh > 12) hh = hh - 12;
+  const hourSel = document.getElementById('reminderHour');
+  const minSel = document.getElementById('reminderMinute');
+  const ampmSel = document.getElementById('reminderAmPm');
+  if (hourSel) hourSel.value = String(hourSel.querySelector(`option[value="${String(hh).padStart(2,'0')}"]`) ? String(hh).padStart(2,'0') : String(hh));
+  if (minSel) minSel.value = mm || '00';
+  if (ampmSel) ampmSel.value = ampm;
+}
+
+function build24hFromInputs() {
+  const hourSel = document.getElementById('reminderHour');
+  const minSel = document.getElementById('reminderMinute');
+  const ampmSel = document.getElementById('reminderAmPm');
+  if (!hourSel || !minSel || !ampmSel) return '';
+  let hh = Number(hourSel.value);
+  const mm = String(minSel.value).padStart(2,'0');
+  const ampm = ampmSel.value;
+  if (ampm === 'AM') {
+    if (hh === 12) hh = 0;
+  } else {
+    if (hh !== 12) hh = hh + 12;
+  }
+  return String(hh).padStart(2,'0') + ':' + mm;
+}
+
+async function fetchGoals() {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/goals`, {}, 8000);
+    const data = await res.json();
+    goals = data || [];
+    populateGoalSelect();
+    if (goals.length > 0) {
+      const first = goals[0];
+      selectGoal(first._id);
+    } else {
+      // no goals yet
+      state = null;
+      renderCalendar(30, []);
+      remainingDaysEl.textContent = 30;
+      // auto-focus to assist entry
+      goalInput.focus();
+    }
+    // cache fetched goals
+    saveCache(state || null);
+  } catch (err) {
+    console.error("fetchGoals error", err);
+    showToast("Failed to load goals from server; offline mode enabled.");
+    // fallback to local cache
+    const cached = loadCache();
+    if (cached) {
+      goals = [cached];
+      populateGoalSelect();
+      applyStateToUI(cached);
+    }
+  }
+}
+
+function populateGoalSelect() {
+  goalSelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = goals.length ? "Select goal" : "No goals yet";
+  goalSelect.appendChild(placeholder);
+  goals.forEach((g) => {
+    const o = document.createElement("option");
+    o.value = g._id;
+    o.textContent = `${g.goal} (${g.totalDays}d)`;
+    goalSelect.appendChild(o);
+  });
+}
+
+async function selectGoal(id) {
+  if (!id) return;
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/goals/${id}`, {}, 8000);
+    const data = await res.json();
+    applyStateToUI(data);
+    // set select value
+    goalSelect.value = id;
+  } catch (err) {
+    console.error("selectGoal error", err);
+  }
+}
+
+async function saveGoal() {
+  const goal = goalInput.value.trim();
+  const totalDays = Number(totalDaysInput.value) || 30;
+  if (!goal) {
+    showToast("Please enter a goal name");
+    return;
+  }
+  if (!Number.isFinite(totalDays) || totalDays < 1 || totalDays > 3650) {
+    showToast("Please enter a reasonable goal duration (1 - 3650 days)");
+    return;
+  }
+  // prevent duplicate local entry
+  if (
+    goals &&
+    goals.some((g) => g.goal === goal && g.totalDays === totalDays)
+  ) {
+    showToast("A goal with the same name and duration already exists");
+    return;
+  }
+  try {
+    setButtonLoading(saveGoalBtn, true);
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal, totalDays }),
+      },
+      9000
+    );
+    if (!res.ok) throw new Error(`Save failed ${res.status}`);
+    const data = await res.json();
+    // refresh list and select created goal
+    await fetchGoals();
+    if (data && data._id) selectGoal(data._id);
+    setButtonSuccess(saveGoalBtn);
+    showToast("Goal saved successfully");
+    // clear success state after short delay
+    setTimeout(() => setButtonLoading(saveGoalBtn, false), 900);
+  } catch (err) {
+    console.error(err);
+    setButtonLoading(saveGoalBtn, false);
+    showToast("Failed to save goal. Saved locally and will sync when online.");
+    // fallback: store in local queue for sync
+    enqueueSync({ type: "create_goal", payload: { goal, totalDays } });
+    // create a local cached state so UI isn't empty
+    const temp = {
+      _id: `local-${Date.now()}`,
+      goal,
+      totalDays,
+      daysCompleted: [],
+      currentStreak: 0,
+      bestStreak: 0,
+    };
+    goals.unshift(temp);
+    populateGoalSelect();
+    selectGoal(temp._id);
+  }
+}
+
+async function toggleDay(day, node) {
+  const completed = node.classList.contains("completed");
+  try {
+    if (!state || !state._id) throw new Error("No goal selected");
+    // verify server date to avoid system-clock manipulation
+    try {
+      const svr = await fetchWithTimeout(`${API_BASE}/server-date`, {}, 5000);
+      const js = await svr.json();
+      const serverDateStr = (js && js.serverDate) || lastServerDate;
+      if (serverDateStr) {
+        const serverDay = serverDateStr.split("T")[0];
+        const localDay = new Date().toISOString().split("T")[0];
+        if (serverDay !== localDay) {
+          showToast("Date mismatch detected. Please check your system clock.");
+          return;
+        }
+      }
+    } catch (e) {
+      // if server date check fails, proceed but log (conservative approach)
+      console.warn("server-date check failed", e);
+    }
+    // restriction: allow only marking the current goal day (computed from startDate)
+    const totalDays = state.totalDays || 30;
+    let todayIndex = 0;
+    if (state && state.startDate) {
+      const start = new Date(state.startDate + "T00:00:00");
+      const today = new Date();
+      const startMid = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate()
+      );
+      const todayMid = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+      const diff = Math.floor((todayMid - startMid) / 86400000) + 1;
+      if (diff >= 1) todayIndex = Math.min(diff, totalDays);
+      else todayIndex = 0;
+    } else {
+      todayIndex = Math.min(new Date().getDate(), totalDays);
+    }
+    if (todayIndex === 0) {
+      showToast(
+        "Goal hasn't started yet — marking will be available when the goal starts."
+      );
+      return;
+    }
+    if (day > todayIndex) {
+      showToast("You can only mark today; future days are disabled.");
+      return;
+    }
+    if (day !== todayIndex) {
+      showToast("You can only mark the current goal day.");
+      return;
+    }
+    if (completed) {
+      // prevent un-marking today's done status
+      showToast("Today's completion is already recorded.");
+      return;
+    }
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/update-streak`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day, mark: !completed }),
+      },
+      9000
+    );
+    const data = await res.json();
+    state = data;
+    // re-render
+    renderCalendar(data.totalDays || 30, data.daysCompleted || []);
+    currentStreakEl.textContent = data.currentStreak || 0;
+    bestStreakEl.textContent = data.bestStreak || 0;
+    totalCompletedEl.textContent = (data.daysCompleted || []).length;
+    remainingDaysEl.textContent =
+      (data.totalDays || 30) - (data.daysCompleted || []).length;
+    updateCanvas(
+      ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
+    );
+    flashSyncIcon();
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to mark day. Action stored locally and will sync.");
+    enqueueSync({
+      type: "toggle_day",
+      payload: { id: state && state._id, day, mark: true },
+    });
+  }
+}
+
+async function resetStreak() {
+  if (!confirm("Reset streak? This will uncheck all days but keep the goal."))
+    return;
+  try {
+    setButtonLoading(resetBtn, true);
+    if (!state || !state._id) {
+      alert("No goal selected");
+      setButtonLoading(resetBtn, false);
+      return;
+    }
+    const res = await fetch(`${API_BASE}/goals/${state._id}/reset`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    state = data;
+    await fetchGoals();
+    selectGoal(state._id);
+    showToast("Streak reset successfully");
+    setButtonLoading(resetBtn, false);
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to reset streak. Will attempt to sync later.");
+    enqueueSync({ type: "reset", payload: { id: state && state._id } });
+    setButtonLoading(resetBtn, false);
+  }
+}
+
+async function editGoal() {
+  const goal = goalInput.value.trim();
+  const totalDays = Number(totalDaysInput.value) || 30;
+  if (!state) {
+    alert("Save a goal first");
+    return;
+  }
+  try {
+    setButtonLoading(editGoalBtn, true);
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/edit`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal, totalDays }),
+      },
+      9000
+    );
+    if (!res.ok) throw new Error("Edit failed");
+    const data = await res.json();
+    state = data;
+    await fetchGoals();
+    selectGoal(state._id);
+    setButtonSuccess(editGoalBtn);
+    setTimeout(() => setButtonLoading(editGoalBtn, false), 700);
+  } catch (err) {
+    console.error(err);
+    setButtonLoading(editGoalBtn, false);
+    showToast("Failed to edit goal; will sync later.");
+    enqueueSync({ type: "edit", payload: { id: state._id, goal, totalDays } });
+  }
+}
+
+async function deleteGoal() {
+  if (!state || !state._id) return alert("No goal selected");
+  if (!confirm("Delete this goal? This cannot be undone.")) return;
+  try {
+    setButtonLoading(deleteGoalBtn, true);
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}`,
+      { method: "DELETE" },
+      9000
+    );
+    const data = await res.json();
+    await fetchGoals();
+    showToast("Goal deleted");
+    setButtonLoading(deleteGoalBtn, false);
+  } catch (err) {
+    console.error(err);
+    showToast(
+      "Failed to delete goal; will remove locally and attempt to sync later."
+    );
+    enqueueSync({ type: "delete", payload: { id: state._id } });
+    setButtonLoading(deleteGoalBtn, false);
+  }
+}
+
+// Canvas progress ring
+function updateCanvas(percent) {
+  const size = canvas.width;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size / 2 - 12;
+  // optimized animation: only one animation frame loop at a time
+  const target = Math.max(0, Math.min(100, percent || 0));
+  if (canvas._animFrame) cancelAnimationFrame(canvas._animFrame);
+  const startTime = performance.now();
+  const startPercent = canvas._lastPercent || 0;
+  const duration = 700;
+
+  function drawFrame(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const p = startPercent + (target - startPercent) * eased;
+    ctx.clearRect(0, 0, size, size);
+    // background
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = "#eef2ff";
+    ctx.lineWidth = 12;
+    ctx.stroke();
+    // arc
+    const start = -Math.PI / 2;
+    const end = start + Math.PI * 2 * (p / 100);
+    const grad = ctx.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, "#1e90ff");
+    grad.addColorStop(1, "#22c55e");
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, start, end);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    // text
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "600 18px Poppins, Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(Math.round(p) + "%", cx, cy);
+    if (t < 1) {
+      canvas._animFrame = requestAnimationFrame(drawFrame);
+    } else {
+      canvas._lastPercent = target;
+      canvas._animFrame = null;
+    }
+  }
+  canvas._animFrame = requestAnimationFrame(drawFrame);
+}
+
+// events
+saveGoalBtn.addEventListener("click", saveGoal);
+resetBtn.addEventListener("click", resetStreak);
+editGoalBtn.addEventListener("click", editGoal);
+goalSelect.addEventListener("change", (e) => selectGoal(e.target.value));
+deleteGoalBtn.addEventListener("click", deleteGoal);
+
+// init
+// helper utilities: fetch timeout, toast, button states, local cache and sync queue
+function fetchWithTimeout(url, opts = {}, timeout = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  const merged = { ...opts, signal: controller.signal };
+  return fetch(url, merged)
+    .then((res) => {
+      try {
+        const sd = res.headers.get("X-Server-Date");
+        if (sd) lastServerDate = sd;
+      } catch (e) {}
+      return res;
+    })
+    .finally(() => clearTimeout(id));
+}
+
+function showToast(msg, ms = 3500) {
+  let t = document.querySelector(".toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.className = "toast";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => t.classList.remove("show"), ms);
+}
+
+function setButtonLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) {
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.classList.add("btn--loading");
+    if (!btn.querySelector(".spinner")) {
+      const s = document.createElement("span");
+      s.className = "spinner";
+      // use muted spinner on light background buttons
+      if (btn.classList.contains("muted") || btn.classList.contains("muted")) {
+        s.classList.add("spinner--muted");
+      }
+      btn.prepend(s);
+    }
+  } else {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.classList.remove("btn--loading");
+    const s = btn.querySelector(".spinner");
+    if (s) s.remove();
+    btn.classList.remove("btn--success");
+  }
+}
+
+function setButtonSuccess(btn) {
+  if (!btn) return;
+  btn.classList.add("btn--success");
+}
+
+function saveCache(obj) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
+  } catch (e) {}
+}
+
+function loadCache() {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY));
+  } catch (e) {
+    return null;
+  }
+}
+
+function enqueueSync(item) {
+  try {
+    const q = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || "[]");
+    q.push(item);
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(q));
+  } catch (e) {
+    console.error("enqueue error", e);
+  }
+}
+
+async function flushSyncQueue() {
+  try {
+    const q = JSON.parse(localStorage.getItem(SYNC_QUEUE_KEY) || "[]");
+    if (!q.length) return;
+    for (const item of q.slice()) {
+      try {
+        if (item.type === "create_goal") {
+          await fetchWithTimeout(
+            `${API_BASE}/goals`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(item.payload),
+            },
+            9000
+          );
+        } else if (item.type === "toggle_day") {
+          const { id, day, mark } = item.payload;
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${id}/update-streak`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ day, mark }),
+            },
+            9000
+          );
+        } else if (item.type === "reset") {
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${item.payload.id}/reset`,
+            { method: "POST" },
+            9000
+          );
+        } else if (item.type === "edit") {
+          const p = item.payload;
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${p.id}/edit`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ goal: p.goal, totalDays: p.totalDays }),
+            },
+            9000
+          );
+        } else if (item.type === "delete") {
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${item.payload.id}`,
+            { method: "DELETE" },
+            9000
+          );
+        }
+        // remove processed item
+        const current = JSON.parse(
+          localStorage.getItem(SYNC_QUEUE_KEY) || "[]"
+        );
+        current.shift();
+        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(current));
+      } catch (innerErr) {
+        console.warn("sync item failed", innerErr);
+        // stop processing further to avoid tight loop
+        break;
+      }
+    }
+    // refresh after sync
+    await fetchGoals();
+  } catch (e) {
+    console.error("flushSyncQueue", e);
+  }
+}
+
+function flashSyncIcon() {
+  const icon = document.getElementById("syncIcon");
+  if (!icon) return;
+  icon.classList.add("spin");
+  setTimeout(() => icon.classList.remove("spin"), 900);
+}
+
+// attempt to flush queue when back online
+window.addEventListener("online", () => {
+  showToast("Back online — syncing...");
+  flushSyncQueue();
+});
+
+// Reminder scheduling and Notification API
+function setupReminderScheduler() {
+  // clear existing
+  if (reminderIntervalId) {
+    clearInterval(reminderIntervalId);
+    reminderIntervalId = null;
+  }
+  if (!state) return;
+  if (!state.remindersEnabled || !state.reminderTime) return;
+  // ensure permission
+  if (Notification && Notification.permission !== "granted") {
+    Notification.requestPermission();
+  }
+  // check every minute
+  reminderIntervalId = setInterval(() => {
+    try {
+      const now = new Date();
+      const hhmm = now.toTimeString().slice(0, 5); // 'HH:MM'
+      if (hhmm === state.reminderTime) {
+        // show notification
+        showNotification(
+          `Time to study ${state.goal}! Keep your streak alive 🔥`
+        );
+      }
+    } catch (e) {
+      console.error("reminder tick", e);
+    }
+  }, 60 * 1000);
+}
+
+function showNotification(text) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    new Notification("Study Reminder", { body: text, icon: "" });
+  }
+}
+
+async function saveReminderToServer(time, enabled) {
+  if (!state || !state._id) return;
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/reminder`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reminderTime: time, enabled }),
+      },
+      8000
+    );
+    if (res.ok) {
+      const data = await res.json();
+      state = data;
+      applyStateToUI(data);
+      showToast("Reminder saved");
+    } else {
+      throw new Error("save failed");
+    }
+  } catch (e) {
+    console.warn("saveReminderToServer failed", e);
+    enqueueSync({
+      type: "edit",
+      payload: { id: state._id, goal: state.goal, totalDays: state.totalDays },
+    });
+    showToast("Saved reminder locally; will sync when online");
+  }
+}
+
+// wire reminder UI (inline controls)
+const reminderHour = document.getElementById('reminderHour');
+const reminderMinute = document.getElementById('reminderMinute');
+const reminderAmPm = document.getElementById('reminderAmPm');
+const reminderToggle = document.getElementById('reminderToggle');
+const reminderStateLabel = document.getElementById('reminderState');
+const previewReminderBtn = document.getElementById('previewReminderBtn');
+const saveReminderBtn = document.getElementById('saveReminderBtn');
+
+function updateReminderStateUI(enabled) {
+  if (reminderStateLabel)
+    reminderStateLabel.textContent = enabled ? 'Enabled' : 'Disabled';
+  if (reminderToggle)
+    reminderToggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+}
+
+function showNotificationPreview() {
+  if (!state) return showToast('Select a goal first');
+  if (Notification && Notification.permission !== 'granted') {
+    Notification.requestPermission().then((perm) => {
+      if (perm === 'granted') showNotification(`Time to study ${state.goal}! Keep your streak alive 🔥`);
+      else showToast('Notification permission denied');
+    });
+  } else {
+    showNotification(`Time to study ${state.goal}! Keep your streak alive 🔥`);
+  }
+}
+
+if (reminderHour && reminderMinute && reminderAmPm) {
+  [reminderHour, reminderMinute, reminderAmPm].forEach((el) => {
+    el.addEventListener('change', () => {
+      if (!state) return showToast('Select a goal first');
+      const t = build24hFromInputs();
+      const display = `${reminderHour.value}:${reminderMinute.value} ${reminderAmPm.value}`;
+      showToast(`Reminder time set to ${display}. Click Save to persist.`);
+    });
+  });
+}
+
+if (reminderToggle) {
+  reminderToggle.addEventListener('change', (e) => {
+    const enabled = !!e.target.checked;
+    if (!state) {
+      reminderToggle.checked = !enabled;
+      return showToast('Select a goal first');
+    }
+    updateReminderStateUI(enabled);
+    showToast(enabled ? 'Reminders enabled (click Save)' : 'Reminders disabled (click Save)');
+  });
+}
+
+if (previewReminderBtn) {
+  previewReminderBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    showNotificationPreview();
+  });
+}
+
+if (saveReminderBtn) {
+  saveReminderBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!state) return showToast('Select a goal first');
+    const time = build24hFromInputs();
+    const enabled = reminderToggle ? !!reminderToggle.checked : false;
+    if (enabled && Notification && Notification.permission !== 'granted') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return showToast('Notification permission is required to enable reminders');
+    }
+    setButtonLoading(saveReminderBtn, true);
+    await saveReminderToServer(time, enabled);
+    setButtonLoading(saveReminderBtn, false);
+    updateReminderStateUI(enabled);
+  });
+}
+
+// call init
+populateTimeSelectors();
+fetchGoals();
+
+// register service worker for offline caching if available
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/sw.js")
+    .then(() => {
+      console.log("Service worker registered");
+    })
+    .catch((err) => console.warn("SW register failed", err));
+}
