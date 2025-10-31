@@ -241,6 +241,20 @@ function updateClaimedBadgesUI(claimed) {
     img.width = 28;
     img.height = 28;
     img.loading = "lazy";
+    // allow clicking small claimed badge to view the celebration popup
+    img.style.cursor = "pointer";
+    img.title = "View badge";
+    const badgeMeta = BADGES.find((x) => x.id === id) || {
+      id,
+      img: IMAGES[id],
+    };
+    img.addEventListener("click", () => {
+      try {
+        showBadgeCelebrate(badgeMeta);
+      } catch (e) {
+        console.warn("celebrate error", e);
+      }
+    });
     claimedBadgesContainer.appendChild(img);
   }
 }
@@ -348,7 +362,9 @@ function renderBadgesModal(items) {
   }
   for (const b of items) {
     const card = document.createElement("div");
-    card.className = "badge-card" + (b.eligible ? "" : " locked");
+    // Show badge as blurred (locked) until it's actually claimed.
+    // Eligible-but-unclaimed badges remain blurred so user must claim to unlock.
+    card.className = "badge-card" + (b.claimed ? "" : " locked");
     const status = document.createElement("div");
     status.className = "status-chip";
     status.textContent = b.claimed
@@ -415,7 +431,14 @@ function renderBadgesModal(items) {
               state.badges = Array.from(
                 new Set([...(state.badges || []), b.id])
               );
+              // reflect claimed state in UI and remove blur
               status.textContent = "Claimed";
+              card.classList.remove("locked");
+              try {
+                showBadgeCelebrate(b);
+              } catch (e) {
+                console.warn("celebrate error", e);
+              }
               btn.remove();
               updateClaimedBadgesUI(state.claimedBadges || []);
               showToast("Claim queued — will sync when online");
@@ -429,6 +452,13 @@ function renderBadgesModal(items) {
           state.claimedBadges = js.claimedBadges || state.claimedBadges || [];
           state.badges = js.badges || state.badges || [];
           status.textContent = "Claimed";
+          // remove locked blur when server confirms claim
+          card.classList.remove("locked");
+          try {
+            showBadgeCelebrate(b);
+          } catch (e) {
+            console.warn("celebrate error", e);
+          }
           btn.remove();
           updateClaimedBadgesUI(state.claimedBadges || []);
           showToast("Badge claimed!");
@@ -445,6 +475,13 @@ function renderBadgesModal(items) {
           );
           state.badges = Array.from(new Set([...(state.badges || []), b.id]));
           status.textContent = "Claimed";
+          // reflect claimed state immediately and remove locked styling
+          card.classList.remove("locked");
+          try {
+            showBadgeCelebrate(b);
+          } catch (e) {
+            console.warn("celebrate error", e);
+          }
           btn.remove();
           updateClaimedBadgesUI(state.claimedBadges || []);
           showToast("Claim queued — will sync when online");
@@ -453,9 +490,157 @@ function renderBadgesModal(items) {
       card.appendChild(btn);
     }
 
-    // Do not render "Already claimed" text; the status chip shows claimed state instead.
+    // Do not append 'Already claimed' text below the badge image; statusChip already indicates claimed state.
+
+    // If this badge is already claimed, make the whole card interactive to view the celebration
+    if (b.claimed) {
+      card.classList.add("claimed");
+      card.addEventListener("click", (e) => {
+        // if the click originated from a button inside the card, ignore (safety)
+        if (e.target && e.target.closest && e.target.closest("button")) return;
+        try {
+          showBadgeCelebrate(b);
+        } catch (err) {
+          console.warn("celebrate error", err);
+        }
+      });
+    }
 
     badgesGrid.appendChild(card);
+  }
+}
+
+// Celebration: 3D rotating badge + particle burst
+function showBadgeCelebrate(b) {
+  try {
+    const overlay = document.createElement("div");
+    overlay.className = "badge-celebrate-overlay";
+    overlay.innerHTML = `
+      <div class="celebrate-backdrop"></div>
+      <div class="celebrate-panel" role="dialog" aria-label="Badge celebration">
+        <button class="celebrate-close" aria-label="Close celebration">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="celebrate-badge">
+          <div class="badge-surface" style="background-image: url('${b.img.replace(
+            /'/g,
+            "\\'"
+          )}');"></div>
+        </div>
+        <canvas class="celebrate-canvas"></canvas>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const panel = overlay.querySelector(".celebrate-panel");
+    const canvasEl = overlay.querySelector("canvas");
+    const ctx = canvasEl.getContext("2d");
+
+    function resize() {
+      const r = window.devicePixelRatio || 1;
+      canvasEl.width = panel.clientWidth * r;
+      canvasEl.height = panel.clientHeight * r;
+      canvasEl.style.width = panel.clientWidth + "px";
+      canvasEl.style.height = panel.clientHeight + "px";
+      ctx.setTransform(r, 0, 0, r, 0, 0);
+    }
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const colors = ["#4f46e5", "#f59e0b", "#10b981", "#ec4899"];
+    const particles = [];
+    let last = performance.now();
+    let running = true;
+    let rafId = null;
+
+    function spawnBurst(count = 36) {
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.6 - 0.3);
+        particles.push({
+          angle,
+          speed: 120 + Math.random() * 180,
+          life: 900 + Math.random() * 900,
+          age: 0,
+          color: colors[i % colors.length],
+          size: 3 + Math.random() * 5,
+        });
+      }
+    }
+
+    // spawn initial burst and then repeat while running to keep animation visible
+    spawnBurst(36);
+    const burstTimer = setInterval(() => {
+      if (!running) return;
+      spawnBurst(18 + Math.floor(Math.random() * 18));
+    }, 1200);
+    function hexToRgba(hex, a) {
+      const bigint = parseInt(hex.replace("#", ""), 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function frame(ts) {
+      const dt = ts - last;
+      last = ts;
+      // update center in case panel resized
+      const centerX = panel.clientWidth / 2;
+      const centerY = panel.clientHeight / 2;
+      ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.age += dt;
+        if (p.age >= p.life) {
+          particles.splice(i, 1);
+          continue;
+        }
+        const prog = p.age / p.life;
+        const dist = p.speed * easeOutCubic(prog);
+        const x = centerX + Math.cos(p.angle) * dist;
+        const y = centerY + Math.sin(p.angle) * dist * 0.6; // elliptical arc
+        const alpha = Math.max(0, 1 - prog);
+        const rad = p.size * (1 + prog * 1.2);
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, rad * 3);
+        grd.addColorStop(0, hexToRgba(p.color, Math.min(1, alpha * 1.0)));
+        grd.addColorStop(1, hexToRgba(p.color, 0));
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // continue while running (producing bursts) or while particles remain
+      if (running || particles.length > 0) {
+        rafId = requestAnimationFrame(frame);
+      }
+    }
+
+    rafId = requestAnimationFrame(frame);
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    // close button handling: stop spawning and remove overlay when clicked
+    const closeBtn = overlay.querySelector(".celebrate-close");
+    function cleanup() {
+      running = false;
+      clearInterval(burstTimer);
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", resize);
+      overlay.remove();
+    }
+    closeBtn.addEventListener("click", () => {
+      try {
+        // fade out then cleanup
+        panel.classList.add("fade-out");
+        setTimeout(cleanup, 420);
+      } catch (e) {
+        cleanup();
+      }
+    });
+  } catch (e) {
+    console.warn("showBadgeCelebrate error", e);
   }
 }
 

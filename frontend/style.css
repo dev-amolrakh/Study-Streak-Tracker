@@ -415,9 +415,8 @@ select:focus {
   margin-top: 6px;
 }
 .badge-card button.claim-btn {
-  margin: 10px auto 0;
-  display: block;
-  padding: 8px 14px;
+  margin-top: 8px;
+  padding: 8px 10px;
   border-radius: 8px;
   border: none;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
@@ -512,6 +511,161 @@ select:focus {
   border-radius: 10px;
   border: 1px solid #e6eef8;
   background: white;
+}
+/* position claim button centered over badge image */
+.badge-card {
+  position: relative;
+}
+.badge-card .claim-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(
+    90deg,
+    rgba(30, 144, 255, 0.95),
+    rgba(34, 197, 94, 0.95)
+  );
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.12);
+  z-index: 3;
+}
+.badge-card .claim-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+/* Celebration overlay and 3D rotating badge */
+.badge-celebrate-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1400;
+  pointer-events: auto; /* accept interactions (close button) */
+}
+.badge-celebrate-overlay .celebrate-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 10, 20, 0.45);
+  backdrop-filter: blur(6px) saturate(1.03);
+}
+.badge-celebrate-overlay .celebrate-panel {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px;
+  max-width: 920px;
+  width: min(92vw, 920px);
+}
+.celebrate-badge {
+  width: 360px;
+  height: 360px;
+  perspective: 900px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.celebrate-badge .badge-surface {
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  transform-style: preserve-3d;
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.18);
+  position: relative;
+  z-index: 2;
+  transition: transform 360ms ease, box-shadow 360ms ease;
+  animation: badge-rotate 6s linear infinite;
+}
+.celebrate-badge .badge-surface::before {
+  /* subtle rim highlight */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+      120% 60% at 30% 20%,
+      rgba(255, 255, 255, 0.18),
+      transparent 18%
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.celebrate-badge .badge-surface::after {
+  /* subtle specular reflection */
+  content: "";
+  position: absolute;
+  left: 12%;
+  top: 10%;
+  width: 40%;
+  height: 18%;
+  border-radius: 40%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0)
+  );
+  transform: rotate(-18deg);
+  filter: blur(6px);
+  opacity: 0.9;
+}
+@keyframes badge-rotate {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+.celebrate-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* make claimed badge cards clearly interactive */
+.badge-card.claimed {
+  cursor: pointer;
+}
+.celebrate-panel.fade-out {
+  opacity: 0;
+  transition: opacity 360ms ease;
+}
+.celebrate-close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  z-index: 4;
+  backdrop-filter: blur(6px);
+}
+.celebrate-close svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 .grid {
   display: grid;

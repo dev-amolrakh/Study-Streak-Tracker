@@ -347,8 +347,12 @@ app.post("/goals/:id/reset", async (req, res) => {
   try {
     const doc = await Streak.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: "no goal found" });
+    // reset progress and badges for this goal
     doc.daysCompleted = [];
     doc.currentStreak = 0;
+    // also clear earned and claimed badges when resetting a streak
+    doc.badges = [];
+    doc.claimedBadges = [];
     await doc.save();
     res.json(doc);
   } catch (err) {
