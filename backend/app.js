@@ -103,52 +103,6 @@ const BADGES = [
   },
 ];
 
-const fs = require('fs');
-const path = require('path');
-const SUBS_FILE = path.join(__dirname, 'subscriptions.json');
-
-// Endpoint to receive Push subscriptions from clients
-app.post('/subscribe', async (req, res) => {
-  try {
-    const sub = req.body;
-    if (!sub || !sub.endpoint) return res.status(400).json({ error: 'invalid subscription' });
-    let subs = [];
-    try {
-      if (fs.existsSync(SUBS_FILE)) {
-        subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8')) || [];
-      }
-    } catch (e) {
-      console.warn('Unable to read existing subscriptions', e);
-      subs = [];
-    }
-    // avoid duplicates by endpoint
-    if (!subs.find((s) => s.endpoint === sub.endpoint)) {
-      subs.push(sub);
-      try {
-        fs.writeFileSync(SUBS_FILE, JSON.stringify(subs, null, 2), 'utf8');
-      } catch (e) {
-        console.warn('Failed to persist subscription', e);
-      }
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('subscribe error', err);
-    res.status(500).json({ error: 'server error' });
-  }
-});
-
-// Admin helper: list stored subscriptions (useful for local testing)
-app.get('/subscriptions', (req, res) => {
-  try {
-    let subs = [];
-    if (fs.existsSync(SUBS_FILE)) subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8')) || [];
-    res.json({ subscriptions: subs });
-  } catch (e) {
-    console.warn('Failed to read subscriptions', e);
-    res.json({ subscriptions: [] });
-  }
-});
-
 // Return badge definitions
 app.get("/badges", (req, res) => {
   res.json(BADGES);

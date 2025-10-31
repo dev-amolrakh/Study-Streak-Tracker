@@ -46,8 +46,9 @@ const QUOTES = [
   "The hardest part is showing up — you're doing it.",
 ];
 
-// VAPID public key for Push subscriptions. (Provided by user)
-const VAPID_PUBLIC_KEY = "BN4Lxx-qlP5F9r13FQv_JXZAISKtwmsC28LrwpH5Dhy-A5luWaA_iPN8-xi4zuzKrUkcNqFMkgj4YSsUdT6QEHQ";
+// VAPID public key for Push subscriptions.
+// Replace this with your actual base64 (URL-safe) VAPID public key from your server.
+const VAPID_PUBLIC_KEY = "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -235,39 +236,29 @@ async function fetchGoal() {
 
 function applyStateToUI(data) {
   state = data;
-  // guard DOM updates in case elements are missing (prevents runtime errors)
-  if (goalInput) goalInput.value = (data && data.goal) || "";
-  if (totalDaysInput) totalDaysInput.value = (data && data.totalDays) || 30;
-  if (currentStreakEl)
-    currentStreakEl.textContent = (data && data.currentStreak) || 0;
-  if (bestStreakEl) bestStreakEl.textContent = (data && data.bestStreak) || 0;
-  if (totalCompletedEl)
-    totalCompletedEl.textContent = (data && (data.daysCompleted || []).length) || 0;
-  if (remainingDaysEl && data)
-    remainingDaysEl.textContent = (data.totalDays || 30) - (data.daysCompleted || []).length;
-  if (quoteEl) quoteEl.textContent = pickQuote();
-  renderCalendar((data && data.totalDays) || 30, (data && data.daysCompleted) || []);
-  try {
-    if (typeof updateCanvas === 'function') {
-      updateCanvas(((data && (data.daysCompleted || []).length) / ((data && data.totalDays) || 30)) * 100);
-    }
-  } catch (e) {
-    console.warn('updateCanvas error', e);
-  }
-  // rewards UI (guarded)
-  const pointsEl = document.getElementById("points");
-  if (pointsEl) pointsEl.textContent = (data && data.points) || 0;
-  const levelEl = document.getElementById("level");
-  if (levelEl) levelEl.textContent = (data && data.level) || "Beginner";
+  goalInput.value = data.goal || "";
+  totalDaysInput.value = data.totalDays || 30;
+  currentStreakEl.textContent = data.currentStreak || 0;
+  bestStreakEl.textContent = data.bestStreak || 0;
+  totalCompletedEl.textContent = (data.daysCompleted || []).length;
+  remainingDaysEl.textContent =
+    (data.totalDays || 30) - (data.daysCompleted || []).length;
+  quoteEl.textContent = pickQuote();
+  renderCalendar(data.totalDays || 30, data.daysCompleted || []);
+  updateCanvas(
+    ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
+  );
+  // rewards UI
+  document.getElementById("points").textContent = data.points || 0;
+  document.getElementById("level").textContent = data.level || "Beginner";
   const badgesEl = document.getElementById("badgesList");
-  if (badgesEl) badgesEl.textContent = data && data.badges && data.badges.length ? data.badges.join(", ") : "—";
+  badgesEl.textContent =
+    data.badges && data.badges.length ? data.badges.join(", ") : "—";
   // render small claimed badges below the label
-  updateClaimedBadgesUI((data && data.claimedBadges) || []);
-  const startLabel = document.getElementById("startDateLabel");
-  if (startLabel) startLabel.textContent = (data && data.startDate) || "—";
-  const currentGoalDayEl = document.getElementById("currentGoalDay");
-  if (currentGoalDayEl)
-    currentGoalDayEl.textContent = computeCurrentGoalDayForState(data) || "—";
+  updateClaimedBadgesUI(data.claimedBadges || []);
+  document.getElementById("startDateLabel").textContent = data.startDate || "—";
+  document.getElementById("currentGoalDay").textContent =
+    computeCurrentGoalDayForState(data) || "—";
   // reminder UI: set hour/min/ampm selects and toggle
   const hourSel = document.getElementById("reminderHour");
   const minSel = document.getElementById("reminderMinute");
@@ -885,7 +876,6 @@ async function fetchGoals() {
 }
 
 function populateGoalSelect() {
-  if (!goalSelect) return;
   goalSelect.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -906,7 +896,7 @@ async function selectGoal(id) {
     const data = await res.json();
     applyStateToUI(data);
     // set select value
-    if (goalSelect) goalSelect.value = id;
+    goalSelect.value = id;
   } catch (err) {
     console.error("selectGoal error", err);
   }
