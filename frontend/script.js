@@ -717,6 +717,17 @@ async function flushSyncQueue() {
             },
             9000
           );
+        } else if (item.type === "reminder") {
+          const p = item.payload;
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${p.id}/reminder`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reminderTime: p.reminderTime, enabled: p.enabled }),
+            },
+            9000
+          );
         } else if (item.type === "delete") {
           await fetchWithTimeout(
             `${API_BASE}/goals/${item.payload.id}`,
@@ -815,9 +826,11 @@ async function saveReminderToServer(time, enabled) {
     }
   } catch (e) {
     console.warn("saveReminderToServer failed", e);
+    // enqueue a reminder-specific sync item so the reminderTime and enabled flag
+    // are preserved and can be replayed when online.
     enqueueSync({
-      type: "edit",
-      payload: { id: state._id, goal: state.goal, totalDays: state.totalDays },
+      type: "reminder",
+      payload: { id: state._id, reminderTime: time, enabled: enabled },
     });
     showToast("Saved reminder locally; will sync when online");
   }
