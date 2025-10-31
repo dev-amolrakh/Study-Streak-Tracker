@@ -46,6 +46,62 @@ const QUOTES = [
   "The hardest part is showing up — you're doing it.",
 ];
 
+// VAPID public key for Push subscriptions. (Provided by user)
+const VAPID_PUBLIC_KEY = "BN4Lxx-qlP5F9r13FQv_JXZAISKtwmsC28LrwpH5Dhy-A5luWaA_iPN8-xi4zuzKrUkcNqFMkgj4YSsUdT6QEHQ";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function subscribeUserToPush(registration) {
+  if (!registration || !("pushManager" in registration)) return null;
+  try {
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) {
+      console.log("Existing push subscription found");
+      return existing;
+    }
+    if (
+      !VAPID_PUBLIC_KEY ||
+      VAPID_PUBLIC_KEY === "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY"
+    ) {
+      console.warn("VAPID public key not set. Skipping push subscription.");
+      return null;
+    }
+    const sub = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    console.log("New push subscription", sub);
+    // Try to send subscription to your backend so it can send pushes later.
+    try {
+      await fetch(`${API_BASE}/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub),
+      });
+      console.log("Subscription sent to server");
+    } catch (err) {
+      console.warn(
+        "Failed to send subscription to server. Save it locally and send later.",
+        err
+      );
+      localStorage.setItem("sst_push_subscription", JSON.stringify(sub));
+    }
+    return sub;
+  } catch (err) {
+    console.warn("Push subscription failed", err);
+    return null;
+  }
+}
+
 function pickQuote() {
   return QUOTES[Math.floor(Math.random() * QUOTES.length)];
 }
@@ -1749,79 +1805,93 @@ fetchGoals();
 
 // --- Service worker, Notifications and Add to Home Screen (A2HS) ---
 let _deferredInstallPrompt = null;
-if ('serviceWorker' in navigator) {
+if ("serviceWorker" in navigator) {
   navigator.serviceWorker
-    .register('/service-worker.js')
+    .register("/service-worker.js")
     .then((registration) => {
-      console.log('Service worker registered', registration);
+      console.log("Service worker registered", registration);
 
       // Request Notification permission and show a confirmation notification
-      if ('Notification' in window) {
-        Notification.requestPermission().then((permission) => {
-          if (permission === 'granted') {
-            const icon = 'https://via.placeholder.com/192.png?text=Streak';
+      if ("Notification" in window) {
+        Notification.requestPermission().then(async (permission) => {
+          if (permission === "granted") {
+            const icon = "https://via.placeholder.com/192.png?text=Streak";
             // Prefer showing via service worker when available (more reliable)
             try {
               if (registration && registration.showNotification) {
-                registration.showNotification('Notifications enabled!', {
-                  body: 'Daily reminders are enabled. You will receive notifications.',
+                registration.showNotification("Notifications enabled!", {
+                  body: "Daily reminders are enabled. You will receive notifications.",
                   icon,
                 });
               } else {
                 // Fallback: use the Notification constructor in-page
-                new Notification('Notifications enabled!', {
-                  body: 'Daily reminders are enabled. You will receive notifications.',
+                new Notification("Notifications enabled!", {
+                  body: "Daily reminders are enabled. You will receive notifications.",
                   icon,
                 });
               }
             } catch (e) {
-              console.warn('Notification display failed', e);
+              console.warn("Notification display failed", e);
+            }
+
+            // Attempt to subscribe the user to Push so the server can send background notifications
+            try {
+              // Wait for the service worker to be ready
+              const reg = await navigator.serviceWorker.ready;
+              subscribeUserToPush(reg).catch((err) =>
+                console.warn("subscribeUserToPush error", err)
+              );
+            } catch (err) {
+              console.warn(
+                "Service worker not ready for push subscription",
+                err
+              );
             }
           }
         });
       }
     })
-    .catch((err) => console.warn('SW register failed', err));
+    .catch((err) => console.warn("SW register failed", err));
 }
 
 // Handle beforeinstallprompt to show custom "Add to Home Screen" UI
-window.addEventListener('beforeinstallprompt', (e) => {
+window.addEventListener("beforeinstallprompt", (e) => {
   // Prevent the mini-infobar from appearing on mobile
   e.preventDefault();
   _deferredInstallPrompt = e;
-  const btn = document.getElementById('installBtn');
+  const btn = document.getElementById("installBtn");
   if (btn) {
-    btn.classList.add('show');
-    btn.setAttribute('aria-hidden', 'false');
+    btn.classList.add("show");
+    btn.setAttribute("aria-hidden", "false");
     const onClick = async () => {
       btn.disabled = true;
       try {
         await _deferredInstallPrompt.prompt();
         const choice = await _deferredInstallPrompt.userChoice;
-        if (choice && choice.outcome === 'accepted') {
-          console.log('User accepted the A2HS prompt');
-          btn.classList.remove('show');
-          btn.setAttribute('aria-hidden', 'true');
+        if (choice && choice.outcome === "accepted") {
+          console.log("User accepted the A2HS prompt");
+          btn.classList.remove("show");
+          btn.setAttribute("aria-hidden", "true");
         } else {
-          console.log('User dismissed the A2HS prompt');
+          console.log("User dismissed the A2HS prompt");
           btn.disabled = false;
         }
       } catch (err) {
-        console.warn('A2HS prompt error', err);
+        console.warn("A2HS prompt error", err);
         btn.disabled = false;
       }
       _deferredInstallPrompt = null;
     };
-    btn.addEventListener('click', onClick, { once: true });
+    btn.addEventListener("click", onClick, { once: true });
   }
 });
 
-window.addEventListener('appinstalled', () => {
+window.addEventListener("appinstalled", () => {
   // Hide the install UI, app is installed
-  const btn = document.getElementById('installBtn');
+  const btn = document.getElementById("installBtn");
   if (btn) {
-    btn.classList.remove('show');
-    btn.setAttribute('aria-hidden', 'true');
+    btn.classList.remove("show");
+    btn.setAttribute("aria-hidden", "true");
   }
-  console.log('PWA was installed');
+  console.log("PWA was installed");
 });
