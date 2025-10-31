@@ -6,7 +6,6 @@ const StreakSchema = new mongoose.Schema(
     daysCompleted: { type: [Number], default: [] },
     points: { type: Number, default: 0 },
     level: { type: String, default: "Beginner" },
-    badges: { type: [String], default: [] },
     currentStreak: { type: Number, default: 0 },
     bestStreak: { type: Number, default: 0 },
     totalDays: { type: Number, default: 30 },
@@ -17,6 +16,10 @@ const StreakSchema = new mongoose.Schema(
     // reminder settings (optional)
     reminderTime: { type: String, default: null }, // HH:MM (24h)
     remindersEnabled: { type: Boolean, default: false },
+    // badges the user has earned (system-detected based on streaks)
+    badges: { type: [String], default: [] },
+    // badges the user has claimed (explicit user action)
+    claimedBadges: { type: [String], default: [] },
   },
   { timestamps: true }
 );

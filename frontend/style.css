@@ -315,6 +315,142 @@ select:focus {
   color: var(--muted);
 }
 
+/* Badges button and small claimed badges strip */
+.badges button#openBadgesBtn {
+  margin-left: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #e6eef8;
+  background: white;
+  color: var(--muted);
+  cursor: pointer;
+}
+.claimed-badges {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+.claimed-badges img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e6eef8;
+}
+
+/* Badges modal */
+.badges-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.badges-modal[aria-hidden="false"] {
+  display: flex;
+}
+.badges-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 10, 20, 0.5);
+}
+.badges-modal-panel {
+  position: relative;
+  background: white;
+  border-radius: 12px;
+  width: min(820px, 96%);
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 12px 40px rgba(2, 6, 23, 0.2);
+  padding: 18px;
+  z-index: 2;
+}
+.badges-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.badges-modal-header h2 {
+  margin: 0;
+}
+.badges-modal-header button {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+}
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.badge-card {
+  background: #fff;
+  border: 1px solid #eef2ff;
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  position: relative;
+}
+.badge-card img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 8px;
+  border-radius: 8px;
+}
+.badge-card .title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #0f172a;
+}
+.badge-card .meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.badge-card button.claim-btn {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  color: white;
+  cursor: pointer;
+}
+.badge-card.locked img {
+  filter: blur(1.6px) grayscale(60%);
+  opacity: 0.6;
+}
+.badge-card.locked .lock-overlay {
+  position: absolute;
+  inset: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: rgba(15, 23, 42, 0.6);
+  font-weight: 700;
+  font-size: 18px;
+}
+.badge-card .status-chip {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid #eef2ff;
+}
+
 .goal-setup input[type="time"] {
   padding: 8px;
   border-radius: 6px;
@@ -341,6 +477,40 @@ select:focus {
 
 .calendar {
   margin-top: 8px;
+}
+.badges-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+.badges-actions-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.badges-actions button.badges-open {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e6eef8;
+  background: white;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+}
+.claimed-badges-large {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.claimed-badges-large img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid #e6eef8;
+  background: white;
 }
 .grid {
   display: grid;

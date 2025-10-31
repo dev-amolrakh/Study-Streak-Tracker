@@ -63,6 +63,116 @@ function computeStreaks(daysArr) {
   return { currentStreak: current, bestStreak: best };
 }
 
+// Badge metadata (IDs must be stable). Images hosted on Cloudinary.
+const BADGES = [
+  {
+    id: "day-1",
+    title: "Starting Badge",
+    days: 1,
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/day-1-badge-starting-badge_t8xdrn.png",
+  },
+  {
+    id: "7-day",
+    title: "7 Day Badge",
+    days: 7,
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/7-day-badge_ydr6g7.png",
+  },
+  {
+    id: "15-day",
+    title: "15 Days Badge",
+    days: 15,
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/15-days-badge_zuojgs.png",
+  },
+  {
+    id: "30-day",
+    title: "30 Days Badge",
+    days: 30,
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/30-days-badge_cpzjgt.png",
+  },
+  {
+    id: "60-day",
+    title: "60 Days Badge",
+    days: 60,
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/60-days-badge_pqv62a.png",
+  },
+  {
+    id: "100-day",
+    title: "100 Days Badge",
+    days: 100,
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
+  },
+];
+
+// Return badge definitions
+app.get("/badges", (req, res) => {
+  res.json(BADGES);
+});
+
+// Return badges status for a specific goal
+app.get("/goals/:id/badges", async (req, res) => {
+  try {
+    const doc = await Streak.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+
+    // compute eligibility and claim state
+    const current = doc.currentStreak || 0;
+    const earnedSet = new Set(doc.badges || []);
+    const claimedSet = new Set(doc.claimedBadges || []);
+
+    const items = BADGES.map((b) => {
+      return {
+        id: b.id,
+        title: b.title,
+        days: b.days,
+        img: b.img,
+        earned: earnedSet.has(b.id),
+        claimed: claimedSet.has(b.id),
+        eligible: current >= b.days,
+      };
+    });
+    res.json({
+      badges: items,
+      currentStreak: current,
+      claimedBadges: doc.claimedBadges || [],
+      earnedBadges: doc.badges || [],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Claim a badge for a specific goal
+app.post("/goals/:id/claim-badge", async (req, res) => {
+  try {
+    const { badgeId } = req.body || {};
+    if (!badgeId) return res.status(400).json({ error: "badgeId required" });
+    const doc = await Streak.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+    const badgeDef = BADGES.find((b) => b.id === badgeId);
+    if (!badgeDef) return res.status(400).json({ error: "unknown badge" });
+
+    const current = doc.currentStreak || 0;
+    if (current < badgeDef.days)
+      return res.status(403).json({ error: "not eligible yet" });
+
+    doc.claimedBadges = Array.from(
+      new Set([...(doc.claimedBadges || []), badgeId])
+    );
+    // ensure it's also present in earned badges set so server reflects earned state
+    doc.badges = Array.from(new Set([...(doc.badges || []), badgeId]));
+    await doc.save();
+    res.json({
+      success: true,
+      claimedBadges: doc.claimedBadges,
+      badges: doc.badges,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
 // Routes (same as before)
 app.post("/goals", async (req, res) => {
   try {
@@ -157,10 +267,14 @@ app.post("/goals/:id/update-streak", async (req, res) => {
     else if (pts >= 150) level = "Advanced";
     else if (pts >= 70) level = "Intermediate";
     doc.level = level;
+    // award badges using stable IDs that match BADGES metadata
     const badges = new Set(doc.badges || []);
-    if (doc.currentStreak >= 7) badges.add("bronze-7");
-    if (doc.currentStreak >= 15) badges.add("silver-15");
-    if (doc.currentStreak >= 30) badges.add("gold-30");
+    if (doc.currentStreak >= 1) badges.add("day-1");
+    if (doc.currentStreak >= 7) badges.add("7-day");
+    if (doc.currentStreak >= 15) badges.add("15-day");
+    if (doc.currentStreak >= 30) badges.add("30-day");
+    if (doc.currentStreak >= 60) badges.add("60-day");
+    if (doc.currentStreak >= 100) badges.add("100-day");
     doc.badges = Array.from(badges);
 
     await doc.save();

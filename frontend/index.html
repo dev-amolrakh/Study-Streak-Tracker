@@ -6,6 +6,7 @@
     <title>Study Streak Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
       rel="stylesheet"
@@ -88,6 +89,7 @@
           </div>
           <div class="badges" aria-live="polite">
             Badges: <span id="badgesList">—</span>
+            <!-- Badges button moved below the streak controls (see bottom of page) -->
           </div>
           <div class="goal-meta">
             <small
@@ -114,7 +116,40 @@
       <section class="calendar">
         <div id="calendarGrid" class="grid"></div>
       </section>
+      <!-- Badges action area placed below the streak/calendar controls -->
+      <section class="badges-actions">
+        <div class="badges-actions-inner">
+          <button id="openBadgesBtn" class="badges-open" aria-haspopup="dialog">
+            Show Badges
+          </button>
+          <div
+            id="claimedBadgesContainer"
+            class="claimed-badges-large"
+            aria-hidden="false"
+          ></div>
+        </div>
+      </section>
     </main>
+
+    <!-- Badges modal -->
+    <div
+      id="badgesModal"
+      class="badges-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+    >
+      <div class="badges-modal-backdrop" data-close="true"></div>
+      <div class="badges-modal-panel" role="document">
+        <header class="badges-modal-header">
+          <h2>Your Badges</h2>
+          <button id="closeBadgesBtn" aria-label="Close">×</button>
+        </header>
+        <div class="badges-modal-body">
+          <div id="badgesGrid" class="badges-grid"></div>
+        </div>
+      </div>
+    </div>
 
     <script src="script.js"></script>
   </body>

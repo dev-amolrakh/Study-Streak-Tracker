@@ -21,6 +21,15 @@ const resetBtn = document.getElementById("resetBtn");
 const canvas = document.getElementById("progressCanvas");
 const ctx = canvas.getContext("2d");
 
+// Badges UI elements
+const openBadgesBtn = document.getElementById("openBadgesBtn");
+const badgesModal = document.getElementById("badgesModal");
+const closeBadgesBtn = document.getElementById("closeBadgesBtn");
+const badgesGrid = document.getElementById("badgesGrid");
+const claimedBadgesContainer = document.getElementById(
+  "claimedBadgesContainer"
+);
+
 let state = null;
 let goals = [];
 let cachedGoals = null; // in-memory cache
@@ -156,6 +165,8 @@ function applyStateToUI(data) {
   const badgesEl = document.getElementById("badgesList");
   badgesEl.textContent =
     data.badges && data.badges.length ? data.badges.join(", ") : "—";
+  // render small claimed badges below the label
+  updateClaimedBadgesUI(data.claimedBadges || []);
   document.getElementById("startDateLabel").textContent = data.startDate || "—";
   document.getElementById("currentGoalDay").textContent =
     computeCurrentGoalDayForState(data) || "—";
@@ -174,6 +185,301 @@ function applyStateToUI(data) {
   // (re)start reminder scheduler if enabled
   setupReminderScheduler();
 }
+
+// ----- Badges modal and interactions -----
+function updateClaimedBadgesUI(claimed) {
+  if (!claimedBadgesContainer) return;
+  claimedBadgesContainer.innerHTML = "";
+  if (!Array.isArray(claimed) || claimed.length === 0) return;
+  // Local badge metadata (mirrors backend BADGES)
+  const BADGES = [
+    {
+      id: "day-1",
+      title: "Starting Badge",
+      days: 1,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/day-1-badge-starting-badge_t8xdrn.png",
+    },
+    {
+      id: "7-day",
+      title: "7 Day Badge",
+      days: 7,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/7-day-badge_ydr6g7.png",
+    },
+    {
+      id: "15-day",
+      title: "15 Days Badge",
+      days: 15,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/15-days-badge_zuojgs.png",
+    },
+    {
+      id: "30-day",
+      title: "30 Days Badge",
+      days: 30,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/30-days-badge_cpzjgt.png",
+    },
+    {
+      id: "60-day",
+      title: "60 Days Badge",
+      days: 60,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/60-days-badge_pqv62a.png",
+    },
+    {
+      id: "100-day",
+      title: "100 Days Badge",
+      days: 100,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
+    },
+  ];
+  const IMAGES = BADGES.reduce((acc, b) => {
+    acc[b.id] = b.img;
+    return acc;
+  }, {});
+  for (const id of claimed) {
+    const img = document.createElement("img");
+    img.src = IMAGES[id] || "";
+    img.alt = id;
+    img.width = 28;
+    img.height = 28;
+    img.loading = "lazy";
+    claimedBadgesContainer.appendChild(img);
+  }
+}
+
+async function fetchBadgesForGoal() {
+  if (!state || !state._id) return showToast("Select a goal to view badges");
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/badges`,
+      {},
+      8000
+    );
+    if (res.status === 404) {
+      // goal does not exist on the server (may be a local/unsynced goal)
+      // throw so we run the local fallback path below (build badges from local state)
+      throw new Error("not-found");
+    }
+    if (!res.ok) throw new Error("failed");
+    const js = await res.json();
+    return js.badges || [];
+  } catch (e) {
+    console.warn("fetchBadgesForGoal failed", e);
+    // fallback: construct badges locally from known metadata and local state
+    try {
+      const localBADGES = [
+        {
+          id: "day-1",
+          title: "Starting Badge",
+          days: 1,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/day-1-badge-starting-badge_t8xdrn.png",
+        },
+        {
+          id: "7-day",
+          title: "7 Day Badge",
+          days: 7,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/7-day-badge_ydr6g7.png",
+        },
+        {
+          id: "15-day",
+          title: "15 Days Badge",
+          days: 15,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/15-days-badge_zuojgs.png",
+        },
+        {
+          id: "30-day",
+          title: "30 Days Badge",
+          days: 30,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/30-days-badge_cpzjgt.png",
+        },
+        {
+          id: "60-day",
+          title: "60 Days Badge",
+          days: 60,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/60-days-badge_pqv62a.png",
+        },
+        {
+          id: "100-day",
+          title: "100 Days Badge",
+          days: 100,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
+        },
+      ];
+      const current = state && state.currentStreak ? state.currentStreak : 0;
+      const earnedSet = new Set(state && state.badges ? state.badges : []);
+      const claimedSet = new Set(
+        state && state.claimedBadges ? state.claimedBadges : []
+      );
+      const items = localBADGES.map((b) => ({
+        id: b.id,
+        title: b.title,
+        days: b.days,
+        img: b.img,
+        earned: earnedSet.has(b.id),
+        claimed: claimedSet.has(b.id),
+        eligible: current >= b.days,
+      }));
+      showToast("Using local badge data (offline)");
+      return items;
+    } catch (inner) {
+      showToast("Unable to load badges right now");
+      return [];
+    }
+  }
+}
+
+function openBadgesModalHandler() {
+  if (!state || !state._id) return showToast("Select a goal first");
+  badgesModal.setAttribute("aria-hidden", "false");
+  badgesGrid.innerHTML =
+    '<div style="padding:18px; color: var(--muted)">Loading...</div>';
+  fetchBadgesForGoal().then(renderBadgesModal);
+}
+
+function closeBadgesModalHandler() {
+  badgesModal.setAttribute("aria-hidden", "true");
+  badgesGrid.innerHTML = "";
+}
+
+function renderBadgesModal(items) {
+  badgesGrid.innerHTML = "";
+  if (!items || items.length === 0) {
+    badgesGrid.innerHTML =
+      '<div style="padding:18px; color: var(--muted)">No badges available</div>';
+    return;
+  }
+  for (const b of items) {
+    const card = document.createElement("div");
+    card.className = "badge-card" + (b.eligible ? "" : " locked");
+    const status = document.createElement("div");
+    status.className = "status-chip";
+    status.textContent = b.claimed
+      ? "Claimed"
+      : b.eligible
+      ? "Available"
+      : `Locked`;
+    card.appendChild(status);
+
+    const img = document.createElement("img");
+    img.src = b.img;
+    img.alt = b.title;
+    img.width = 96;
+    img.height = 96;
+    img.loading = "lazy";
+    img.decoding = "async";
+    card.appendChild(img);
+
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = b.title;
+    card.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${b.days} day${b.days > 1 ? "s" : ""}`;
+    card.appendChild(meta);
+
+    if (!b.eligible) {
+      const lock = document.createElement("div");
+      lock.className = "lock-overlay";
+      lock.textContent = "🔒";
+      card.appendChild(lock);
+    }
+
+    if (b.eligible && !b.claimed) {
+      const btn = document.createElement("button");
+      btn.className = "claim-btn";
+      btn.textContent = "Claim";
+      btn.addEventListener("click", async () => {
+        try {
+          btn.disabled = true;
+          const res = await fetchWithTimeout(
+            `${API_BASE}/goals/${state._id}/claim-badge`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ badgeId: b.id }),
+            },
+            9000
+          );
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            const errMsg = (j && j.error) || "claim failed";
+            // If server doesn't expose the endpoint (404) or is unavailable, enqueue and optimistically update
+            if (res.status === 404 || res.status === 503 || res.status === 0) {
+              enqueueSync({ type: "claim_badge", payload: { id: state && state._id, badgeId: b.id } });
+              state.claimedBadges = Array.from(new Set([...(state.claimedBadges || []), b.id]));
+              state.badges = Array.from(new Set([...(state.badges || []), b.id]));
+              status.textContent = "Claimed";
+              btn.remove();
+              updateClaimedBadgesUI(state.claimedBadges || []);
+              showToast("Claim queued — will sync when online");
+              return;
+            }
+            // for other failures, raise to the catch block
+            throw new Error(errMsg);
+          }
+          const js = await res.json();
+          // update local state and UI
+          state.claimedBadges = js.claimedBadges || state.claimedBadges || [];
+          state.badges = js.badges || state.badges || [];
+          status.textContent = "Claimed";
+          btn.remove();
+          updateClaimedBadgesUI(state.claimedBadges || []);
+          showToast("Badge claimed!");
+        } catch (err) {
+          console.error("claim err", err);
+          // Enqueue claim to be retried later (server may be unavailable or goal unsynced)
+          enqueueSync({
+            type: "claim_badge",
+            payload: { id: state && state._id, badgeId: b.id },
+          });
+          // Optimistically update UI as claimed so user sees feedback
+          state.claimedBadges = Array.from(
+            new Set([...(state.claimedBadges || []), b.id])
+          );
+          state.badges = Array.from(new Set([...(state.badges || []), b.id]));
+          status.textContent = "Claimed";
+          btn.remove();
+          updateClaimedBadgesUI(state.claimedBadges || []);
+          showToast("Claim queued — will sync when online");
+        }
+      });
+      card.appendChild(btn);
+    }
+
+    if (b.claimed) {
+      const claimedMark = document.createElement("div");
+      claimedMark.style.marginTop = "8px";
+      claimedMark.style.fontSize = "13px";
+      claimedMark.style.color = "var(--muted)";
+      claimedMark.textContent = "Already claimed";
+      card.appendChild(claimedMark);
+    }
+
+    badgesGrid.appendChild(card);
+  }
+}
+
+// wire modal open/close events
+if (openBadgesBtn)
+  openBadgesBtn.addEventListener("click", openBadgesModalHandler);
+if (closeBadgesBtn)
+  closeBadgesBtn.addEventListener("click", closeBadgesModalHandler);
+// backdrop click
+document.addEventListener("click", (e) => {
+  if (!badgesModal) return;
+  const target = e.target;
+  if (target && target.dataset && target.dataset.close === "true")
+    closeBadgesModalHandler();
+});
+// close on Escape
+document.addEventListener("keydown", (e) => {
+  if (
+    e.key === "Escape" &&
+    badgesModal &&
+    badgesModal.getAttribute("aria-hidden") === "false"
+  )
+    closeBadgesModalHandler();
+});
 
 // populate hour/min selectors (12-hour, India friendly)
 function populateTimeSelectors() {
@@ -735,6 +1041,17 @@ async function flushSyncQueue() {
           await fetchWithTimeout(
             `${API_BASE}/goals/${item.payload.id}`,
             { method: "DELETE" },
+            9000
+          );
+        } else if (item.type === "claim_badge") {
+          const p = item.payload;
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${p.id}/claim-badge`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ badgeId: p.badgeId }),
+            },
             9000
           );
         }
