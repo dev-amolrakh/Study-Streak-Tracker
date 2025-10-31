@@ -405,9 +405,16 @@ function renderBadgesModal(items) {
             const errMsg = (j && j.error) || "claim failed";
             // If server doesn't expose the endpoint (404) or is unavailable, enqueue and optimistically update
             if (res.status === 404 || res.status === 503 || res.status === 0) {
-              enqueueSync({ type: "claim_badge", payload: { id: state && state._id, badgeId: b.id } });
-              state.claimedBadges = Array.from(new Set([...(state.claimedBadges || []), b.id]));
-              state.badges = Array.from(new Set([...(state.badges || []), b.id]));
+              enqueueSync({
+                type: "claim_badge",
+                payload: { id: state && state._id, badgeId: b.id },
+              });
+              state.claimedBadges = Array.from(
+                new Set([...(state.claimedBadges || []), b.id])
+              );
+              state.badges = Array.from(
+                new Set([...(state.badges || []), b.id])
+              );
               status.textContent = "Claimed";
               btn.remove();
               updateClaimedBadgesUI(state.claimedBadges || []);
@@ -446,14 +453,7 @@ function renderBadgesModal(items) {
       card.appendChild(btn);
     }
 
-    if (b.claimed) {
-      const claimedMark = document.createElement("div");
-      claimedMark.style.marginTop = "8px";
-      claimedMark.style.fontSize = "13px";
-      claimedMark.style.color = "var(--muted)";
-      claimedMark.textContent = "Already claimed";
-      card.appendChild(claimedMark);
-    }
+    // Do not render "Already claimed" text; the status chip shows claimed state instead.
 
     badgesGrid.appendChild(card);
   }

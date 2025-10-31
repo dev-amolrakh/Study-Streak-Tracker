@@ -2,8 +2,36 @@ const CACHE_NAME = "study-streak-cache-v1";
 const ASSETS = ["/", "/index.html", "/style.css", "/script.js", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
+  // Attempt to cache assets but don't fail installation if some resources are unavailable
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // addAll will reject on any failed request; instead fetch each and cache successful ones.
+      const results = await Promise.allSettled(
+        ASSETS.map(async (asset) => {
+          try {
+            const req = new Request(asset, { cache: "no-cache" });
+            const res = await fetch(req);
+            if (!res || !res.ok)
+              throw new Error(`Fetch failed ${asset} ${res && res.status}`);
+            await cache.put(asset, res.clone());
+            return { asset, ok: true };
+          } catch (e) {
+            // ignore individual failures but report them
+            return { asset, ok: false, error: String(e) };
+          }
+        })
+      );
+      // optional: log failures for debugging
+      const failed = results.filter(
+        (r) => r.status === "fulfilled" && r.value && r.value.ok === false
+      );
+      if (failed.length)
+        console.warn(
+          "SW: some assets failed to cache",
+          failed.map((f) => f.value)
+        );
+    })()
   );
   self.skipWaiting();
 });
