@@ -167,6 +167,39 @@ app.get('/server-date', (req, res) => {
   res.json({ serverDate: new Date().toISOString() });
 });
 
+// Helpful root endpoint so visiting the deployment URL shows useful info
+app.get('/', (req, res) => {
+  // If the client prefers HTML, send a tiny info page. Otherwise return JSON
+  const accept = req.headers && req.headers.accept ? req.headers.accept : '';
+  const info = {
+    name: 'Study Streak Tracker - Backend',
+    message: 'This endpoint serves the API. For API calls use /api/... routes (e.g. /api/server-date, /api/goals).',
+    endpoints: {
+      serverDate: '/api/server-date',
+      goals: '/api/goals',
+      getGoal: '/api/get-goal'
+    }
+  };
+  if (accept.indexOf('text/html') !== -1) {
+    return res.send(`
+      <html>
+        <head><title>Study Streak Tracker API</title></head>
+        <body style="font-family:system-ui,Segoe UI,Arial;line-height:1.6;padding:24px">
+          <h1>Study Streak Tracker — Backend</h1>
+          <p>This deployment contains only the backend API. Use the following endpoints:</p>
+          <ul>
+            <li><a href="/api/server-date">/api/server-date</a></li>
+            <li><a href="/api/get-goal">/api/get-goal</a></li>
+            <li><a href="/api/goals">/api/goals</a></li>
+          </ul>
+          <p>To run the full app, deploy the frontend (the <code>/frontend</code> folder) or configure your Vercel routes to serve static files from it.</p>
+        </body>
+      </html>
+    `);
+  }
+  return res.json(info);
+});
+
 app.post('/goals/:id/reminder', async (req, res) => {
   try {
     const { reminderTime, enabled } = req.body;

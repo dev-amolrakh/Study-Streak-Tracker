@@ -4,7 +4,11 @@
     { "src": "api/**/*.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" }
+  { "src": "/api/(.*)", "dest": "/api/$1" },
+  { "src": "^/$", "dest": "/api" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/frontend/$1" },
+    { "src": "/.*", "dest": "/frontend/index.html" }
   ],
   "functions": {
     "api/**/*.js": {
