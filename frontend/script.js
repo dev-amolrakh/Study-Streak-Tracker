@@ -1,7 +1,8 @@
 const API_BASE = (() => {
   // allow overriding via env-like global for easier local testing
   if (window.__API_BASE__) return window.__API_BASE__;
-  return "http://localhost:5000";
+  // Default to the deployed backend URL (explicit /api prefix)
+  return "https://study-streak-tracker-myz5.vercel.app/api";
 })();
 
 const goalSelect = document.getElementById("goalSelect");
