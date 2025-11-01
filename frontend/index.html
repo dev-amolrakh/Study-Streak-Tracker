@@ -6,15 +6,8 @@
     <title>Study Streak Tracker</title>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#007BFF" />
-    <link
-      rel="icon"
-      href="/icons/icon-192.svg"
-      sizes="192x192"
-    />
-    <link
-      rel="apple-touch-icon"
-      href="/icons/icon-192.svg"
-    />
+    <link rel="icon" href="/icons/icon-192.svg" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <style>
       /* Enhanced install button style */
@@ -54,10 +47,15 @@
         font-size: 16px;
       }
       @keyframes pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.05); }
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
       }
-      
+
       /* PWA install prompt */
       .install-prompt {
         position: fixed;
@@ -80,8 +78,12 @@
         animation: slideDown 0.3s ease;
       }
       @keyframes slideDown {
-        from { transform: translateX(-50%) translateY(-100%); }
-        to { transform: translateX(-50%) translateY(0); }
+        from {
+          transform: translateX(-50%) translateY(-100%);
+        }
+        to {
+          transform: translateX(-50%) translateY(0);
+        }
       }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -324,7 +326,7 @@
 
     <button id="installBtn" aria-hidden="true">Install App</button>
     <div id="installPrompt" class="install-prompt" aria-hidden="true">
-      Install Study Streak Tracker for quick access and notifications! 
+      Install Study Streak Tracker for quick access and notifications!
     </div>
     <script src="script.js"></script>
   </body>

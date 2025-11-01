@@ -1,11 +1,52 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384">
-  <rect width="384" height="384" fill="#007BFF" rx="48"/>
+  <defs>
+    <linearGradient id="bgGradient384" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="flameGradient384" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#ffa726;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffee58;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow384">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <rect width="384" height="384" fill="url(#bgGradient384)" rx="77"/>
+  
   <g transform="translate(192,192)">
-    <path d="M-48,-96 C-48,-96 -64,-48 -32,-32 C-16,-16 0,-32 16,-16 C32,0 48,-32 48,-64 C48,-96 32,-112 16,-128 C0,-144 -16,-128 -32,-144 C-48,-128 -48,-96 -48,-96 Z" 
-          fill="#FF6B35"/>
-    <path d="M-32,-64 C-32,-64 -40,-32 -16,-24 C-8,-16 0,-24 8,-16 C16,-8 24,-24 24,-40 C24,-56 16,-64 8,-72 C0,-80 -8,-72 -16,-80 C-24,-72 -32,-64 -32,-64 Z" 
-          fill="#FFE66D"/>
-    <circle cx="0" cy="32" r="40" fill="#FF6B35"/>
-    <text x="0" y="104" text-anchor="middle" font-family="Arial" font-size="48" font-weight="bold" fill="white">STREAK</text>
+    <!-- Main flame -->
+    <path d="M0,-90 C-24,-90 -40,-70 -40,-40 C-40,-10 -24,10 0,16 C24,10 40,-10 40,-40 C40,-70 24,-90 0,-90 Z" 
+          fill="url(#flameGradient384)" 
+          filter="url(#glow384)"
+          opacity="0.95"/>
+    
+    <!-- Inner detail -->
+    <path d="M0,-70 C-16,-70 -24,-56 -24,-36 C-24,-16 -16,-4 0,0 C16,-4 24,-16 24,-36 C24,-56 16,-70 0,-70 Z" 
+          fill="#fff" 
+          opacity="0.3"/>
+    
+    <!-- Streak indicators -->
+    <circle cx="-50" cy="50" r="8" fill="#fff" opacity="0.8"/>
+    <circle cx="-30" cy="56" r="8" fill="#fff" opacity="0.6"/>
+    <circle cx="-10" cy="60" r="8" fill="#fff" opacity="0.4"/>
+    <circle cx="10" cy="60" r="8" fill="#fff" opacity="0.6"/>
+    <circle cx="30" cy="56" r="8" fill="#fff" opacity="0.8"/>
+    <circle cx="50" cy="50" r="8" fill="#fff"/>
+    
+    <!-- Typography -->
+    <text x="0" y="100" 
+          text-anchor="middle" 
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="32" 
+          font-weight="600" 
+          fill="#fff" 
+          opacity="0.9">STREAK</text>
   </g>
 </svg>

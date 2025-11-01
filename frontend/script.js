@@ -2100,13 +2100,13 @@ function showNotification(text) {
       actions: [
         {
           action: "mark-complete",
-          title: "Mark Complete ✅"
+          title: "Mark Complete ✅",
         },
         {
-          action: "snooze", 
-          title: "Remind in 1 hour ⏰"
-        }
-      ]
+          action: "snooze",
+          title: "Remind in 1 hour ⏰",
+        },
+      ],
     };
 
     // Prefer showing notifications via the service worker registration when
@@ -2123,14 +2123,14 @@ function showNotification(text) {
             // fallback to window Notification (limited features)
             new Notification("Time to study! 📚", {
               body: text,
-              icon: notificationOptions.icon
+              icon: notificationOptions.icon,
             });
           })
           .catch(() => {
             // on error fallback to window Notification
             new Notification("Time to study! 📚", {
               body: text,
-              icon: notificationOptions.icon
+              icon: notificationOptions.icon,
             });
           });
         return;
@@ -2140,7 +2140,7 @@ function showNotification(text) {
     }
     new Notification("Time to study! 📚", {
       body: text,
-      icon: notificationOptions.icon
+      icon: notificationOptions.icon,
     });
   }
 }
@@ -2454,7 +2454,7 @@ async function markTodayForGoal(goalId, btn, goalObj) {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", (event) => {
     console.log("Message from SW:", event.data);
-    
+
     if (event.data && event.data.action === "mark-today-complete") {
       // Mark today's study as complete
       if (state && state.goal) {
@@ -2493,7 +2493,7 @@ if ("serviceWorker" in navigator) {
         Notification.requestPermission().then(async (permission) => {
           if (permission === "granted") {
             const icon = "/icons/icon-192.svg";
-            
+
             // Set default 8 PM reminder if not already set
             const currentState = localStorage.getItem("sst_state");
             if (currentState) {
@@ -2505,23 +2505,26 @@ if ("serviceWorker" in navigator) {
                 console.log("Set default 8 PM reminder");
               }
             }
-            
+
             // Prefer showing via service worker when available (more reliable)
             try {
               if (registration && registration.showNotification) {
-                registration.showNotification("Study notifications enabled! 🔥", {
-                  body: "You'll get daily reminders to keep your streak going. Default time: 8 PM",
-                  icon,
-                  badge: "/icons/icon-72.svg",
-                  tag: "setup-complete",
-                  requireInteraction: false,
-                  actions: [
-                    {
-                      action: "view-settings",
-                      title: "Change Time ⚙️"
-                    }
-                  ]
-                });
+                registration.showNotification(
+                  "Study notifications enabled! 🔥",
+                  {
+                    body: "You'll get daily reminders to keep your streak going. Default time: 8 PM",
+                    icon,
+                    badge: "/icons/icon-72.svg",
+                    tag: "setup-complete",
+                    requireInteraction: false,
+                    actions: [
+                      {
+                        action: "view-settings",
+                        title: "Change Time ⚙️",
+                      },
+                    ],
+                  }
+                );
               } else {
                 // Fallback: use the Notification constructor in-page
                 new Notification("Study notifications enabled! 🔥", {
@@ -2558,20 +2561,20 @@ window.addEventListener("beforeinstallprompt", (e) => {
   // Prevent the mini-infobar from appearing on mobile
   e.preventDefault();
   _deferredInstallPrompt = e;
-  
+
   const btn = document.getElementById("installBtn");
   const prompt = document.getElementById("installPrompt");
-  
+
   if (btn) {
     btn.classList.add("show");
     btn.setAttribute("aria-hidden", "false");
-    
+
     // Show install prompt after a delay
     setTimeout(() => {
       if (prompt && !localStorage.getItem("sst_install_prompt_dismissed")) {
         prompt.classList.add("show");
         prompt.setAttribute("aria-hidden", "false");
-        
+
         // Auto-hide prompt after 5 seconds
         setTimeout(() => {
           prompt.classList.remove("show");
@@ -2580,15 +2583,15 @@ window.addEventListener("beforeinstallprompt", (e) => {
         }, 5000);
       }
     }, 3000);
-    
+
     const onClick = async () => {
       btn.disabled = true;
       btn.textContent = "Installing...";
-      
+
       try {
         await _deferredInstallPrompt.prompt();
         const choice = await _deferredInstallPrompt.userChoice;
-        
+
         if (choice && choice.outcome === "accepted") {
           console.log("User accepted the A2HS prompt");
           btn.classList.remove("show");
@@ -2611,7 +2614,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
       }
       _deferredInstallPrompt = null;
     };
-    
+
     btn.addEventListener("click", onClick, { once: true });
   }
 });
@@ -2620,23 +2623,25 @@ window.addEventListener("appinstalled", () => {
   // Hide the install UI, app is installed
   const btn = document.getElementById("installBtn");
   const prompt = document.getElementById("installPrompt");
-  
+
   if (btn) {
     btn.classList.remove("show");
     btn.setAttribute("aria-hidden", "true");
   }
-  
+
   if (prompt) {
     prompt.classList.remove("show");
     prompt.setAttribute("aria-hidden", "true");
   }
-  
+
   console.log("PWA was installed");
-  
+
   // Show success message and set installed flag
   localStorage.setItem("sst_app_installed", "true");
-  showToast("🎉 Study Streak Tracker installed! Open from your home screen anytime.");
-  
+  showToast(
+    "🎉 Study Streak Tracker installed! Open from your home screen anytime."
+  );
+
   // Log analytics event (if you add analytics later)
   console.log("PWA_INSTALLED", { timestamp: Date.now() });
 });

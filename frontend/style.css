@@ -16,6 +16,8 @@ body {
   padding-top: 2px !important;
   display: flex;
   justify-content: center;
+  min-width: 0; /* Allow body to shrink */
+  overflow-x: hidden; /* Prevent horizontal scroll on body */
 }
 
 /* utility outfit class if specific weights are desired */
@@ -28,6 +30,7 @@ body {
 .container {
   width: 100%;
   max-width: 880px;
+  min-width: 0; /* Allow container to shrink properly */
 }
 h1 {
   text-align: center;
@@ -176,15 +179,20 @@ h1 {
 }
 .goal-setup input[type="text"] {
   width: 320px;
+  max-width: 100%; /* Prevent overflow on small screens */
   padding: 10px;
   border: 1px solid #e6eef8;
   border-radius: 8px;
+  box-sizing: border-box;
 }
 .goal-setup input[type="number"] {
   width: 80px;
+  min-width: 60px;
+  max-width: 100px;
   padding: 10px;
   border: 1px solid #e6eef8;
   border-radius: 8px;
+  box-sizing: border-box;
 }
 .goal-setup button {
   padding: 10px 14px;
@@ -728,16 +736,95 @@ select:focus {
   padding: 8px;
 }
 
+/* Smaller screens - tablet/mobile landscape */
+@media (max-width: 900px) {
+  .app-grid {
+    gap: 12px;
+    padding: 0 8px;
+  }
+}
+
 @media (max-width: 700px) {
+  body {
+    padding: 8px;
+    padding-top: 5px !important;
+  }
+
+  .app-grid {
+    gap: 10px;
+    padding: 0;
+  }
+
   .grid {
     grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
   }
+
   .goal-setup {
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
+    gap: 10px;
+    padding: 0;
+    margin-bottom: 12px;
   }
   .goal-setup input[type="text"] {
     width: 100%;
+    max-width: 100%;
+  }
+  .goal-setup input[type="number"] {
+    width: 100%;
+    max-width: 120px;
+    align-self: center;
+  }
+  .goal-setup select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Ensure all elements respect viewport */
+  *,
+  *::before,
+  *::after {
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+}
+
+/* Extra small screens - mobile portrait */
+@media (max-width: 480px) {
+  body {
+    padding: 5px;
+    padding-top: 2px !important;
+  }
+
+  .goal-setup input[type="text"] {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+  }
+
+  .day {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+
+  .canvas-wrap {
+    width: 100px;
+    height: 100px;
+  }
+
+  .stats {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    font-size: 13px;
+  }
+
+  .streak-large {
+    font-size: 16px;
+    text-align: center;
   }
 }
 
@@ -750,6 +837,8 @@ select:focus {
   align-items: start;
   width: 100%;
   max-width: 1400px; /* allow a bit more room so center isn't compressed */
+  min-width: 0; /* Allow grid to shrink properly */
+  overflow-x: hidden; /* Prevent horizontal overflow */
 }
 
 @media (max-width: 1200px) {
@@ -1076,6 +1165,7 @@ select:focus {
   */
   .app-grid {
     grid-template-columns: 1fr;
+    overflow-x: hidden;
   }
 
   /* Move the right panel visually above main and make it full-width */
@@ -1174,12 +1264,27 @@ select:focus {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+    padding: 0;
+    margin: 8px 0;
   }
   .reminder-inline-time {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     align-items: center;
     justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .reminder-inline-time select {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .reminder-inline-toggle {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .reminder-inline-actions {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   /* Keep buttons and touch targets comfortably sized */

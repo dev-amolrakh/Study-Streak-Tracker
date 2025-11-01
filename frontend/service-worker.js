@@ -2,7 +2,7 @@ const CACHE_NAME = "study-streak-cache-v2";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
-  "/style.css", 
+  "/style.css",
   "/script.js",
   "/manifest.json",
   "/icons/icon-72.svg",
@@ -15,7 +15,7 @@ const ASSETS_TO_CACHE = [
   "/icons/icon-512.svg",
   "/icons/check-icon.svg",
   "/icons/screenshot.svg",
-  "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+  "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap",
 ];
 
 self.addEventListener("install", (event) => {
@@ -79,7 +79,7 @@ self.addEventListener("push", (event) => {
     body: "Mark your streak for today! Keep the momentum going 🔥",
     icon: "/icons/icon-192.svg",
   };
-  
+
   try {
     if (event.data) {
       data = event.data.json();
@@ -88,11 +88,13 @@ self.addEventListener("push", (event) => {
     // If JSON parsing fails, try to get text or use defaults
     data = {
       title: "Time to study! 📚",
-      body: event.data ? event.data.text() : "Mark your streak for today! Keep the momentum going 🔥",
+      body: event.data
+        ? event.data.text()
+        : "Mark your streak for today! Keep the momentum going 🔥",
       icon: "/icons/icon-192.svg",
     };
   }
-  
+
   const options = {
     body: data.body,
     icon: data.icon || "/icons/icon-192.svg",
@@ -104,25 +106,25 @@ self.addEventListener("push", (event) => {
     actions: [
       {
         action: "mark-complete",
-        title: "Mark Complete ✅"
+        title: "Mark Complete ✅",
       },
       {
         action: "snooze",
-        title: "Remind in 1 hour ⏰"
-      }
+        title: "Remind in 1 hour ⏰",
+      },
     ],
     silent: false, // Allow notification sound
     timestamp: Date.now(),
-    renotify: true // Allow re-notification with same tag
+    renotify: true, // Allow re-notification with same tag
   };
-  
+
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 // Handle messages from the main app
 self.addEventListener("message", (event) => {
   console.log("[SW] Message received:", event.data);
-  
+
   if (event.data && event.data.type === "SHOW_NOTIFICATION") {
     const { title, body, icon, actions } = event.data.payload;
     self.registration.showNotification(title || "Study Streak Tracker", {
@@ -132,10 +134,10 @@ self.addEventListener("message", (event) => {
       vibrate: [200, 100, 200],
       tag: "study-streak-manual",
       requireInteraction: true,
-      actions: actions || []
+      actions: actions || [],
     });
   }
-  
+
   // Respond to the client
   if (event.ports && event.ports[0]) {
     event.ports[0].postMessage({ success: true });
@@ -144,25 +146,27 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  
+
   // Handle notification action buttons
   if (event.action === "mark-complete") {
     // Send message to app to mark today as complete
     event.waitUntil(
-      clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-        // Try to send message to existing window first
-        if (windowClients.length > 0) {
-          windowClients[0].postMessage({ action: "mark-today-complete" });
-          return windowClients[0].focus();
-        } else {
-          // Open app with action parameter
-          return clients.openWindow("/?action=mark-today");
-        }
-      })
+      clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((windowClients) => {
+          // Try to send message to existing window first
+          if (windowClients.length > 0) {
+            windowClients[0].postMessage({ action: "mark-today-complete" });
+            return windowClients[0].focus();
+          } else {
+            // Open app with action parameter
+            return clients.openWindow("/?action=mark-today");
+          }
+        })
     );
     return;
   }
-  
+
   if (event.action === "snooze") {
     // Schedule another notification in 1 hour
     const oneHour = 60 * 60 * 1000;
@@ -174,12 +178,12 @@ self.addEventListener("notificationclick", (event) => {
         vibrate: [200, 100, 200],
         tag: "study-streak-reminder-snooze",
         data: "/",
-        requireInteraction: true
+        requireInteraction: true,
       });
     }, oneHour);
     return;
   }
-  
+
   // Default action: open app
   const urlToOpen = event.notification.data || "/";
   event.waitUntil(
