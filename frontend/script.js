@@ -5,6 +5,13 @@ const API_BASE = (() => {
   return "https://study-streak-tracker-myz5.vercel.app/api";
 })();
 
+// Helper function to check if an ID is valid for backend API calls
+function isValidBackendId(id) {
+  return (
+    id && typeof id === "string" && !id.startsWith("local-") && id.length === 24
+  );
+}
+
 const goalSelect = document.getElementById("goalSelect");
 const deleteGoalBtn = document.getElementById("deleteGoalBtn");
 const goalInput = document.getElementById("goalInput");
@@ -313,6 +320,12 @@ function applyStateToUI(data) {
   } catch (e) {
     console.warn("badge indicator error", e);
   }
+  // update mark as completed button visibility
+  try {
+    updateMarkCompletedButton(data);
+  } catch (e) {
+    console.warn("mark completed button error", e);
+  }
   // load resources for the current goal
   try {
     if (typeof renderResources === "function") {
@@ -406,6 +419,13 @@ function updateClaimedBadgesUI(claimed) {
 
 async function fetchBadgesForGoal() {
   if (!state || !state._id) return showToast("Select a goal to view badges");
+
+  // Check if it's a valid backend ID
+  if (!isValidBackendId(state._id)) {
+    showToast("Badges not available for local goals");
+    return;
+  }
+
   try {
     const res = await fetchWithTimeout(
       `${API_BASE}/goals/${state._id}/badges`,
@@ -970,6 +990,12 @@ async function fetchGoals() {
     } catch (e) {
       /* noop if UI not ready */
     }
+    // update completed goals count
+    try {
+      fetchCompletedGoalsCount();
+    } catch (e) {
+      /* noop if completed goals not ready */
+    }
   } catch (err) {
     console.error("fetchGoals error", err);
     showToast("Failed to load goals from server; offline mode enabled.");
@@ -1003,6 +1029,18 @@ function populateGoalSelect() {
 
 async function selectGoal(id) {
   if (!id) return;
+
+  // Check if it's a valid backend ID
+  if (!isValidBackendId(id)) {
+    console.warn("Cannot select goal with invalid ID:", id);
+    // For local goals, find them in the cached goals list instead
+    const localGoal = goals.find((g) => g._id === id);
+    if (localGoal) {
+      applyStateToUI(localGoal);
+    }
+    return;
+  }
+
   try {
     const res = await fetchWithTimeout(`${API_BASE}/goals/${id}`, {}, 8000);
     const data = await res.json();
@@ -1044,7 +1082,17 @@ async function saveGoal() {
       },
       9000
     );
-    if (!res.ok) throw new Error(`Save failed ${res.status}`);
+    if (!res.ok) {
+      const errorData = await res.json();
+      if (res.status === 409) {
+        throw new Error(
+          errorData.error || "A goal with this name already exists"
+        );
+      }
+      throw new Error(
+        `Save failed ${res.status}: ${errorData.error || "Unknown error"}`
+      );
+    }
     const data = await res.json();
     // refresh list and select created goal
     await fetchGoals();
@@ -1056,6 +1104,18 @@ async function saveGoal() {
   } catch (err) {
     console.error(err);
     setButtonLoading(saveGoalBtn, false);
+
+    // Handle different error types
+    if (
+      err.message.includes("already exists") ||
+      err.message.includes("duplicate")
+    ) {
+      showToast(
+        "A goal with this name already exists. Please choose a different name."
+      );
+      return; // Don't create local duplicate
+    }
+
     showToast("Failed to save goal. Saved locally and will sync when online.");
     // fallback: store in local queue for sync
     enqueueSync({ type: "create_goal", payload: { goal, totalDays } });
@@ -1075,6 +1135,12 @@ async function saveGoal() {
 }
 
 async function setDefaultGoal(goalId) {
+  // Check if it's a valid backend ID
+  if (!isValidBackendId(goalId)) {
+    showToast("Cannot set local goals as default. Please save the goal first.");
+    return;
+  }
+
   try {
     const res = await fetchWithTimeout(
       `${API_BASE}/goals/${goalId}/set-default`,
@@ -1126,6 +1192,14 @@ async function toggleDay(day, node) {
   const completed = node.classList.contains("completed");
   try {
     if (!state || !state._id) throw new Error("No goal selected");
+
+    // Check if it's a valid backend ID
+    if (!isValidBackendId(state._id)) {
+      showToast(
+        "Cannot update streak for local goal. Please save the goal first."
+      );
+      return;
+    }
     // verify server date to avoid system-clock manipulation
     try {
       const svr = await fetchWithTimeout(`${API_BASE}/server-date`, {}, 5000);
@@ -1209,6 +1283,11 @@ async function toggleDay(day, node) {
       updateBadgeIndicator();
     } catch (e) {
       console.warn("badge indicator error", e);
+    }
+    try {
+      updateMarkCompletedButton(data);
+    } catch (e) {
+      console.warn("mark completed button error", e);
     }
     flashSyncIcon();
   } catch (err) {
@@ -2521,6 +2600,8 @@ if (urlParams.get("action") === "mark-today") {
 
 populateTimeSelectors();
 fetchGoals();
+// Initialize completed goals functionality
+initCompletedGoals();
 
 // --- Service worker, Notifications and Add to Home Screen (A2HS) ---
 let _deferredInstallPrompt = null;
@@ -2915,3 +2996,403 @@ FUTURE BACKEND PUSH NOTIFICATION INTEGRATION EXAMPLES
 
 ================================================================================
 */
+
+// --- Completed Goals functionality ---
+let completedGoalsCount = 0;
+
+// Fetch completed goals count and update button
+async function fetchCompletedGoalsCount() {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/goals/completed`, {}, 8000);
+
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch completed goals: ${res.status} ${res.statusText}`
+      );
+    }
+
+    const completedGoals = await res.json();
+    // Ensure completedGoals is an array
+    const goalsArray = Array.isArray(completedGoals) ? completedGoals : [];
+    completedGoalsCount = goalsArray.length;
+    updateCompletedGoalsButton();
+  } catch (err) {
+    console.warn("Failed to fetch completed goals count:", err);
+    // Set count to 0 on error and still update button
+    completedGoalsCount = 0;
+    updateCompletedGoalsButton();
+  }
+}
+
+// Update completed goals button visibility and text
+function updateCompletedGoalsButton() {
+  const button = document.getElementById("completedGoalsBtn");
+  if (!button) return;
+
+  // Always show the button, just update the count
+  button.style.display = "block";
+  button.textContent = `Completed (${completedGoalsCount})`;
+}
+
+// Show completed goals modal
+async function showCompletedGoalsModal() {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/goals/completed`, {}, 8000);
+
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch completed goals: ${res.status} ${res.statusText}`
+      );
+    }
+
+    const completedGoals = await res.json();
+
+    const modal = document.getElementById("completedGoalsModal");
+    const goalsList = document.getElementById("completedGoalsList");
+
+    if (!modal || !goalsList) return;
+
+    // Clear previous content
+    goalsList.innerHTML = "";
+
+    // Ensure completedGoals is an array
+    const goalsArray = Array.isArray(completedGoals) ? completedGoals : [];
+
+    if (goalsArray.length === 0) {
+      goalsList.innerHTML =
+        '<div style="text-align: center; color: var(--muted); padding: 40px;">No completed goals yet!</div>';
+    } else {
+      // Render each completed goal
+      for (const goal of goalsArray) {
+        const goalCard = createCompletedGoalCard(goal);
+        goalsList.appendChild(goalCard);
+      }
+    }
+
+    // Show modal
+    modal.setAttribute("aria-hidden", "false");
+  } catch (err) {
+    console.error("Failed to load completed goals:", err);
+    showToast("Failed to load completed goals");
+  }
+}
+
+// Create a completed goal card
+function createCompletedGoalCard(goal) {
+  const card = document.createElement("div");
+  card.className = "completed-goal-card";
+
+  // Goal header with title and completion date
+  const header = document.createElement("div");
+  header.className = "completed-goal-header";
+
+  const title = document.createElement("h3");
+  title.className = "completed-goal-title";
+  title.textContent = goal.goal || "Untitled Goal";
+
+  const completedDate = document.createElement("div");
+  completedDate.className = "completed-goal-date";
+  if (goal.completedAt) {
+    const date = new Date(goal.completedAt);
+    completedDate.textContent = `Completed on ${date.toLocaleDateString()}`;
+  } else {
+    completedDate.textContent = "Completed";
+  }
+
+  header.appendChild(title);
+  header.appendChild(completedDate);
+
+  // Goal statistics
+  const stats = document.createElement("div");
+  stats.className = "completed-goal-stats";
+
+  const totalDaysStat = createStatCard(
+    (goal.daysCompleted || []).length,
+    "Days Completed"
+  );
+  const totalTargetStat = createStatCard(goal.totalDays || 30, "Total Target");
+  const bestStreakStat = createStatCard(goal.bestStreak || 0, "Best Streak");
+  const pointsStat = createStatCard(goal.points || 0, "Points Earned");
+
+  stats.appendChild(totalDaysStat);
+  stats.appendChild(totalTargetStat);
+  stats.appendChild(bestStreakStat);
+  stats.appendChild(pointsStat);
+
+  // Badges section
+  const badgesSection = document.createElement("div");
+  badgesSection.className = "completed-goal-badges";
+
+  const badgesTitle = document.createElement("h4");
+  badgesTitle.textContent = "🏆 Badges Earned";
+  badgesSection.appendChild(badgesTitle);
+
+  const badgesList = document.createElement("div");
+  badgesList.className = "completed-goal-badges-list";
+
+  if (goal.claimedBadges && goal.claimedBadges.length > 0) {
+    // Badge metadata (should match backend)
+    const badgeImages = {
+      "day-1":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/day-1-badge-starting-badge_t8xdrn.png",
+      "7-day":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/7-day-badge_ydr6g7.png",
+      "15-day":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/15-days-badge_zuojgs.png",
+      "30-day":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/30-days-badge_cpzjgt.png",
+      "60-day":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925155/60-days-badge_pqv62a.png",
+      "100-day":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
+      "goal-completion":
+        "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1762017561/goal-completetion-badge_bdcbxn.png",
+    };
+
+    for (const badgeId of goal.claimedBadges) {
+      const img = document.createElement("img");
+      img.src = badgeImages[badgeId] || "";
+      img.alt = badgeId;
+      img.title = badgeId
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+      badgesList.appendChild(img);
+    }
+  } else {
+    badgesList.innerHTML =
+      '<div style="color: var(--muted); font-size: 12px;">No badges claimed</div>';
+  }
+
+  badgesSection.appendChild(badgesList);
+
+  // Resources section
+  const resourcesSection = document.createElement("div");
+  resourcesSection.className = "completed-goal-resources";
+
+  const resourcesTitle = document.createElement("h4");
+  resourcesTitle.textContent = "📚 Resources Used";
+  resourcesSection.appendChild(resourcesTitle);
+
+  if (goal.resources && goal.resources.length > 0) {
+    const resourcesList = document.createElement("div");
+    for (const resource of goal.resources) {
+      const resourceItem = document.createElement("div");
+      resourceItem.style.cssText =
+        "margin-bottom: 6px; padding: 6px; background: white; border-radius: 6px; font-size: 12px;";
+
+      if (resource.url) {
+        const link = document.createElement("a");
+        link.href = resource.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.style.cssText =
+          "color: #22c55e; text-decoration: none; font-weight: 500;";
+        link.textContent = resource.url;
+        resourceItem.appendChild(link);
+      }
+
+      if (resource.note) {
+        const note = document.createElement("div");
+        note.style.cssText = "color: #6b7280; margin-top: 2px;";
+        note.textContent = resource.note;
+        resourceItem.appendChild(note);
+      }
+
+      resourcesList.appendChild(resourceItem);
+    }
+    resourcesSection.appendChild(resourcesList);
+  } else {
+    const noResources = document.createElement("div");
+    noResources.style.cssText = "color: var(--muted); font-size: 12px;";
+    noResources.textContent = "No resources added";
+    resourcesSection.appendChild(noResources);
+  }
+
+  // Action buttons
+  const actions = document.createElement("div");
+  actions.className = "completed-goal-actions";
+
+  const reopenBtn = document.createElement("button");
+  reopenBtn.className = "reopen-goal-btn";
+  reopenBtn.textContent = "Reopen Goal";
+  reopenBtn.addEventListener("click", () => reopenGoal(goal._id));
+
+  actions.appendChild(reopenBtn);
+
+  // Assemble the card
+  card.appendChild(header);
+  card.appendChild(stats);
+  card.appendChild(badgesSection);
+  card.appendChild(resourcesSection);
+  card.appendChild(actions);
+
+  return card;
+}
+
+// Create a statistic card for completed goals
+function createStatCard(value, label) {
+  const stat = document.createElement("div");
+  stat.className = "completed-goal-stat";
+
+  const valueEl = document.createElement("div");
+  valueEl.className = "completed-goal-stat-value";
+  valueEl.textContent = String(value);
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "completed-goal-stat-label";
+  labelEl.textContent = label;
+
+  stat.appendChild(valueEl);
+  stat.appendChild(labelEl);
+
+  return stat;
+}
+
+// Reopen a completed goal
+async function reopenGoal(goalId) {
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${goalId}/uncomplete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+      8000
+    );
+
+    if (res.ok) {
+      showToast("Goal reopened successfully!");
+      hideCompletedGoalsModal();
+      // Refresh the goals and completed goals
+      await fetchGoals();
+      await fetchCompletedGoalsCount();
+    } else {
+      throw new Error("Failed to reopen goal");
+    }
+  } catch (err) {
+    console.error("Failed to reopen goal:", err);
+    showToast("Failed to reopen goal");
+  }
+}
+
+// Hide completed goals modal
+function hideCompletedGoalsModal() {
+  const modal = document.getElementById("completedGoalsModal");
+  if (modal) {
+    modal.setAttribute("aria-hidden", "true");
+  }
+}
+
+// Initialize completed goals functionality
+function initCompletedGoals() {
+  const completedGoalsBtn = document.getElementById("completedGoalsBtn");
+  const closeCompletedGoalsBtn = document.getElementById(
+    "closeCompletedGoalsBtn"
+  );
+  const modal = document.getElementById("completedGoalsModal");
+
+  // Button click handler
+  if (completedGoalsBtn) {
+    completedGoalsBtn.addEventListener("click", showCompletedGoalsModal);
+  }
+
+  // Close button handler
+  if (closeCompletedGoalsBtn) {
+    closeCompletedGoalsBtn.addEventListener("click", hideCompletedGoalsModal);
+  }
+
+  // Backdrop click handler
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target.dataset.close === "true") {
+        hideCompletedGoalsModal();
+      }
+    });
+
+    // Escape key handler
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.getAttribute("aria-hidden") === "false") {
+        hideCompletedGoalsModal();
+      }
+    });
+  }
+
+  // Fetch initial completed goals count
+  fetchCompletedGoalsCount();
+}
+
+// Update Mark as Completed button visibility and functionality
+function updateMarkCompletedButton(data) {
+  const markCompletedBtn = document.getElementById("markCompletedBtn");
+  if (!markCompletedBtn || !data) return;
+
+  const totalDays = data.totalDays || 30;
+  const completedDays = (data.daysCompleted || []).length;
+  const isGoalFullyCompleted = completedDays >= totalDays;
+  const isAlreadyMarkedCompleted = data.completed === true;
+
+  // Show button only if all days are completed but goal is not yet marked as completed
+  if (isGoalFullyCompleted && !isAlreadyMarkedCompleted) {
+    markCompletedBtn.style.display = "inline-block";
+    markCompletedBtn.onclick = () => markGoalAsCompleted(data._id);
+  } else {
+    markCompletedBtn.style.display = "none";
+  }
+}
+
+// Mark goal as completed
+async function markGoalAsCompleted(goalId) {
+  if (!isValidBackendId(goalId)) {
+    showToast("Cannot complete local goals. Please save the goal first.");
+    return;
+  }
+
+  try {
+    const markCompletedBtn = document.getElementById("markCompletedBtn");
+    if (markCompletedBtn) {
+      setButtonLoading(markCompletedBtn, true);
+    }
+
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${goalId}/complete`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+      8000
+    );
+
+    if (!res.ok) {
+      throw new Error(`Failed to complete goal: ${res.status}`);
+    }
+
+    const result = await res.json();
+    showToast(result.message || "Goal completed successfully! 🎉");
+
+    // Refresh goals list and switch to another goal if available
+    await fetchGoals();
+
+    // Update completed goals count
+    fetchCompletedGoalsCount();
+
+    // If this was the current goal, switch to another one
+    if (state && state._id === goalId) {
+      const activeGoals = goals.filter((g) => !g.completed);
+      if (activeGoals.length > 0) {
+        selectGoal(activeGoals[0]._id);
+      } else {
+        // No more active goals, clear the UI
+        state = null;
+        applyStateToUI(null);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to mark goal as completed:", err);
+    showToast("Failed to complete goal. Please try again.");
+  } finally {
+    const markCompletedBtn = document.getElementById("markCompletedBtn");
+    if (markCompletedBtn) {
+      setButtonLoading(markCompletedBtn, false);
+    }
+  }
+}

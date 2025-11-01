@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Study Streak Tracker</title>
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#007BFF" />
-    <link rel="icon" href="/icons/icon-192.svg" sizes="192x192" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <link rel="icon" href="./icons/icon-192.svg" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <style>
       /* Enhanced install button style */
@@ -234,6 +234,14 @@
             </div>
             <div class="controls">
               <button id="resetBtn">Reset Streak</button>
+              <button
+                id="markCompletedBtn"
+                style="display: none"
+                title="Mark this goal as completed. Once completed, the goal will be moved to completed goals and won't appear in the main study tracker."
+              >
+                <!-- <span class="btn-icon">🎯</span> -->
+                Complete Goal
+              </button>
               <span
                 id="syncIcon"
                 class="sync-icon"
@@ -275,6 +283,9 @@
       <aside id="rightPanel" class="right-panel" aria-label="Goals summary">
         <header class="right-panel-header">
           <h2>Goals</h2>
+          <button id="completedGoalsBtn" class="completed-goals-btn">
+            Completed (0)
+          </button>
         </header>
         <div id="rightPanelCards" class="right-panel-cards">
           <!-- cards rendered by script.js -->
@@ -319,6 +330,28 @@
         <div class="resources-modal-body">
           <div id="resourcesModalList" class="resources-modal-list">
             <!-- resources will be rendered here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Completed Goals modal (glass backdrop) -->
+    <div
+      id="completedGoalsModal"
+      class="completed-goals-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+    >
+      <div class="completed-goals-modal-backdrop" data-close="true"></div>
+      <div class="completed-goals-modal-panel" role="document">
+        <header class="completed-goals-modal-header">
+          <h2>🏆 Completed Goals</h2>
+          <button id="closeCompletedGoalsBtn" aria-label="Close">×</button>
+        </header>
+        <div class="completed-goals-modal-body">
+          <div id="completedGoalsList" class="completed-goals-list">
+            <!-- completed goals will be rendered here -->
           </div>
         </div>
       </div>
