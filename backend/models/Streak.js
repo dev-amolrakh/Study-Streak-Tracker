@@ -20,6 +20,19 @@ const StreakSchema = new mongoose.Schema(
     badges: { type: [String], default: [] },
     // badges the user has claimed (explicit user action)
     claimedBadges: { type: [String], default: [] },
+    // study resources linked to this goal
+    resources: {
+      type: [
+        {
+          url: { type: String, default: "" },
+          note: { type: String, default: "" },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    // flag to mark this goal as the default one to display on app load
+    isDefault: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

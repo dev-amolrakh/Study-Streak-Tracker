@@ -46,9 +46,9 @@ const QUOTES = [
   "The hardest part is showing up — you're doing it.",
 ];
 
-// VAPID public key for Push subscriptions.
-// Replace this with your actual base64 (URL-safe) VAPID public key from your server.
-const VAPID_PUBLIC_KEY = "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY";
+// VAPID public key for Push subscriptions. (Provided by user)
+const VAPID_PUBLIC_KEY =
+  "BN4Lxx-qlP5F9r13FQv_JXZAISKtwmsC28LrwpH5Dhy-A5luWaA_iPN8-xi4zuzKrUkcNqFMkgj4YSsUdT6QEHQ";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -236,29 +236,50 @@ async function fetchGoal() {
 
 function applyStateToUI(data) {
   state = data;
-  goalInput.value = data.goal || "";
-  totalDaysInput.value = data.totalDays || 30;
-  currentStreakEl.textContent = data.currentStreak || 0;
-  bestStreakEl.textContent = data.bestStreak || 0;
-  totalCompletedEl.textContent = (data.daysCompleted || []).length;
-  remainingDaysEl.textContent =
-    (data.totalDays || 30) - (data.daysCompleted || []).length;
-  quoteEl.textContent = pickQuote();
-  renderCalendar(data.totalDays || 30, data.daysCompleted || []);
-  updateCanvas(
-    ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
+  // guard DOM updates in case elements are missing (prevents runtime errors)
+  if (goalInput) goalInput.value = (data && data.goal) || "";
+  if (totalDaysInput) totalDaysInput.value = (data && data.totalDays) || 30;
+  if (currentStreakEl)
+    currentStreakEl.textContent = (data && data.currentStreak) || 0;
+  if (bestStreakEl) bestStreakEl.textContent = (data && data.bestStreak) || 0;
+  if (totalCompletedEl)
+    totalCompletedEl.textContent =
+      (data && (data.daysCompleted || []).length) || 0;
+  if (remainingDaysEl && data)
+    remainingDaysEl.textContent =
+      (data.totalDays || 30) - (data.daysCompleted || []).length;
+  if (quoteEl) quoteEl.textContent = pickQuote();
+  renderCalendar(
+    (data && data.totalDays) || 30,
+    (data && data.daysCompleted) || []
   );
-  // rewards UI
-  document.getElementById("points").textContent = data.points || 0;
-  document.getElementById("level").textContent = data.level || "Beginner";
+  try {
+    if (typeof updateCanvas === "function") {
+      updateCanvas(
+        ((data && (data.daysCompleted || []).length) /
+          ((data && data.totalDays) || 30)) *
+          100
+      );
+    }
+  } catch (e) {
+    console.warn("updateCanvas error", e);
+  }
+  // rewards UI (guarded)
+  const pointsEl = document.getElementById("points");
+  if (pointsEl) pointsEl.textContent = (data && data.points) || 0;
+  const levelEl = document.getElementById("level");
+  if (levelEl) levelEl.textContent = (data && data.level) || "Beginner";
   const badgesEl = document.getElementById("badgesList");
-  badgesEl.textContent =
-    data.badges && data.badges.length ? data.badges.join(", ") : "—";
+  if (badgesEl)
+    badgesEl.textContent =
+      data && data.badges && data.badges.length ? data.badges.join(", ") : "—";
   // render small claimed badges below the label
-  updateClaimedBadgesUI(data.claimedBadges || []);
-  document.getElementById("startDateLabel").textContent = data.startDate || "—";
-  document.getElementById("currentGoalDay").textContent =
-    computeCurrentGoalDayForState(data) || "—";
+  updateClaimedBadgesUI((data && data.claimedBadges) || []);
+  const startLabel = document.getElementById("startDateLabel");
+  if (startLabel) startLabel.textContent = (data && data.startDate) || "—";
+  const currentGoalDayEl = document.getElementById("currentGoalDay");
+  if (currentGoalDayEl)
+    currentGoalDayEl.textContent = computeCurrentGoalDayForState(data) || "—";
   // reminder UI: set hour/min/ampm selects and toggle
   const hourSel = document.getElementById("reminderHour");
   const minSel = document.getElementById("reminderMinute");
@@ -278,6 +299,16 @@ function applyStateToUI(data) {
     updateBadgeIndicator();
   } catch (e) {
     console.warn("badge indicator error", e);
+  }
+  // load resources for the current goal
+  try {
+    if (typeof renderResources === "function") {
+      renderResources().catch((err) =>
+        console.warn("renderResources error", err)
+      );
+    }
+  } catch (e) {
+    console.warn("renderResources call error", e);
   }
 }
 
@@ -841,8 +872,46 @@ async function fetchGoals() {
     goals = data || [];
     populateGoalSelect();
     if (goals.length > 0) {
-      const first = goals[0];
-      selectGoal(first._id);
+      // Try to find default goal in the fetched goals first
+      let goalToSelect = null;
+
+      // Check if any goal is marked as default in the fetched data
+      const defaultGoal = goals.find((g) => g.isDefault === true);
+      if (defaultGoal && defaultGoal._id) {
+        goalToSelect = defaultGoal._id;
+        console.log("Found default goal in fetched data:", defaultGoal.goal);
+      } else {
+        // If no default found in fetched data, try fetching default endpoint
+        try {
+          const defaultRes = await fetchWithTimeout(
+            `${API_BASE}/goals/default`,
+            {},
+            8000
+          );
+          const defaultGoalData = await defaultRes.json();
+          if (defaultGoalData && defaultGoalData._id) {
+            goalToSelect = defaultGoalData._id;
+            console.log(
+              "Found default goal from endpoint:",
+              defaultGoalData.goal
+            );
+            // Update the goals array to mark this as default
+            goals.forEach((g) => {
+              g.isDefault = g._id === defaultGoalData._id;
+            });
+          }
+        } catch (defaultErr) {
+          console.warn("Failed to fetch default goal, using first available");
+        }
+      }
+
+      // If no default goal found, select the first one
+      if (!goalToSelect) {
+        goalToSelect = goals[0]._id;
+        console.log("No default goal found, selecting first:", goals[0].goal);
+      }
+
+      selectGoal(goalToSelect);
     } else {
       // no goals yet
       state = null;
@@ -876,6 +945,7 @@ async function fetchGoals() {
 }
 
 function populateGoalSelect() {
+  if (!goalSelect) return;
   goalSelect.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -896,7 +966,7 @@ async function selectGoal(id) {
     const data = await res.json();
     applyStateToUI(data);
     // set select value
-    goalSelect.value = id;
+    if (goalSelect) goalSelect.value = id;
   } catch (err) {
     console.error("selectGoal error", err);
   }
@@ -959,6 +1029,54 @@ async function saveGoal() {
     goals.unshift(temp);
     populateGoalSelect();
     selectGoal(temp._id);
+  }
+}
+
+async function setDefaultGoal(goalId) {
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${goalId}/set-default`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+      8000
+    );
+
+    if (!res.ok) throw new Error(`Failed to set default goal: ${res.status}`);
+
+    // Update local goals array to reflect the change
+    goals.forEach((g) => {
+      g.isDefault = g._id === goalId;
+    });
+
+    // Select the default goal in the main UI and update dropdown
+    await selectGoal(goalId);
+
+    // Re-render goal cards to update radio buttons and styling
+    renderGoalCards();
+
+    const goalName = goals.find((g) => g._id === goalId)?.goal || "goal";
+    showToast(`"${goalName}" set as default goal`);
+  } catch (err) {
+    console.error("setDefaultGoal error", err);
+    showToast("Failed to set default goal. Will retry when online.");
+    // Fallback: store in local queue for sync
+    enqueueSync({ type: "set_default_goal", payload: { goalId } });
+
+    // Even in offline mode, update the UI to show the selected goal
+    try {
+      goals.forEach((g) => {
+        g.isDefault = g._id === goalId;
+      });
+      await selectGoal(goalId);
+      renderGoalCards();
+
+      const goalName = goals.find((g) => g._id === goalId)?.goal || "goal";
+      showToast(`"${goalName}" set as default (will sync when online)`);
+    } catch (localErr) {
+      console.warn("Failed to update UI locally:", localErr);
+    }
   }
 }
 
@@ -1204,7 +1322,445 @@ editGoalBtn.addEventListener("click", editGoal);
 goalSelect.addEventListener("change", (e) => selectGoal(e.target.value));
 deleteGoalBtn.addEventListener("click", deleteGoal);
 
+// === Study Resources Functionality ===
+const resourceUrlInput = document.getElementById("resourceUrlInput");
+const resourceNoteInput = document.getElementById("resourceNoteInput");
+const addResourceBtn = document.getElementById("addResourceBtn");
+const resourcesList = document.getElementById("resourcesList");
+
+// Extract domain from URL for favicon
+function getFaviconUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=64`;
+  } catch (e) {
+    return "https://www.google.com/s2/favicons?domain=example.com&sz=64";
+  }
+}
+
+// Validate URL format
+function isValidUrl(string) {
+  try {
+    const url = new URL(string);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (e) {
+    return false;
+  }
+}
+
+// Get display title from URL
+function getUrlTitle(url) {
+  try {
+    const urlObj = new URL(url);
+    // Remove www. and get hostname
+    let hostname = urlObj.hostname.replace(/^www\./, "");
+    // Get pathname without trailing slash
+    let path = urlObj.pathname.replace(/\/$/, "");
+
+    if (path && path !== "/") {
+      // If there's a meaningful path, combine hostname with path
+      return hostname + path;
+    }
+    return hostname;
+  } catch (e) {
+    return url;
+  }
+}
+
+// Render resources list
+async function renderResources() {
+  if (!resourcesList) return;
+  if (!state || !state._id) {
+    resourcesList.innerHTML =
+      '<div class="resources-empty">Select a goal to manage resources</div>';
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/resources`,
+      {},
+      8000
+    );
+    const data = await res.json();
+    const resources = data.resources || [];
+
+    if (resources.length === 0) {
+      resourcesList.innerHTML =
+        '<div class="resources-empty">No resources added yet</div>';
+      return;
+    }
+
+    resourcesList.innerHTML = "";
+    resources.forEach((resource) => {
+      const card = document.createElement("div");
+      card.className = "resource-card";
+      card.dataset.id = resource._id;
+
+      // Top row: favicon + content
+      const topRow = document.createElement("div");
+      topRow.className = "resource-card-top";
+
+      // Favicon
+      const faviconDiv = document.createElement("div");
+      faviconDiv.className = "resource-favicon";
+      if (resource.url && resource.url.trim()) {
+        const img = document.createElement("img");
+        img.src = getFaviconUrl(resource.url);
+        img.alt = "";
+        img.onerror = () => {
+          faviconDiv.innerHTML = "🔗";
+        };
+        faviconDiv.appendChild(img);
+      } else {
+        faviconDiv.innerHTML = "📝";
+      }
+
+      // Content
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "resource-content";
+
+      if (resource.url && resource.url.trim()) {
+        const urlLink = document.createElement("a");
+        urlLink.href = resource.url;
+        urlLink.target = "_blank";
+        urlLink.rel = "noopener noreferrer";
+        urlLink.className = "resource-url-text";
+        urlLink.textContent = getUrlTitle(resource.url);
+        urlLink.title = resource.url;
+        contentDiv.appendChild(urlLink);
+      }
+
+      topRow.appendChild(faviconDiv);
+      topRow.appendChild(contentDiv);
+      card.appendChild(topRow);
+
+      // Note (if exists)
+      if (resource.note && resource.note.trim()) {
+        const noteP = document.createElement("p");
+        noteP.className = "resource-note-text";
+        noteP.textContent = resource.note;
+        card.appendChild(noteP);
+      }
+
+      // Actions
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "resource-actions";
+
+      if (resource.url && resource.url.trim()) {
+        const openBtn = document.createElement("button");
+        openBtn.className = "resource-open-btn";
+        openBtn.textContent = "Open";
+        openBtn.onclick = () =>
+          window.open(resource.url, "_blank", "noopener,noreferrer");
+        actionsDiv.appendChild(openBtn);
+      }
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "resource-delete-btn";
+      deleteBtn.innerHTML = "×";
+      deleteBtn.title = "Delete resource";
+      deleteBtn.onclick = () => deleteResource(resource._id);
+      actionsDiv.appendChild(deleteBtn);
+
+      card.appendChild(actionsDiv);
+      resourcesList.appendChild(card);
+    });
+  } catch (err) {
+    console.error("Failed to load resources", err);
+    resourcesList.innerHTML =
+      '<div class="resources-empty">Failed to load resources</div>';
+  }
+}
+
+// --- Resources modal: fetch and render resources for a specific goal ---
+async function fetchResourcesForGoal(goalId) {
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${goalId}/resources`,
+      {},
+      8000
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.resources || [];
+  } catch (e) {
+    console.warn("fetchResourcesForGoal error", e);
+    return [];
+  }
+}
+
+function openResourcesModal(goalId) {
+  const modal = document.getElementById("resourcesModal");
+  const list = document.getElementById("resourcesModalList");
+  const title = document.getElementById("resourcesModalTitle");
+  if (!modal || !list) return;
+  // find goal title if available
+  let goalTitle = "Resources";
+  try {
+    const g = goals.find((x) => x._id === goalId);
+    if (g && g.goal) goalTitle = `Resources — ${g.goal}`;
+  } catch (e) {}
+  if (title) title.textContent = goalTitle;
+  modal.setAttribute("aria-hidden", "false");
+  modal.style.display = "flex";
+  // lock background scrolling while modal is open
+  try {
+    document.body.style.overflow = "hidden";
+  } catch (e) {}
+  list.innerHTML = '<div class="resources-empty">Loading…</div>';
+  // focus close button for keyboard users (delay to ensure element exists)
+  setTimeout(() => {
+    const cb = document.getElementById("closeResourcesModalBtn");
+    if (cb) cb.focus();
+  }, 60);
+  // attach Escape handler to close modal
+  const esc = (ev) => {
+    if (ev.key === "Escape") closeResourcesModal();
+  };
+  modal._esc = esc;
+  document.addEventListener("keydown", esc);
+  // fetch and render
+  fetchResourcesForGoal(goalId).then((resources) => {
+    renderResourcesInModal(resources, goalId);
+  });
+}
+
+function closeResourcesModal() {
+  const modal = document.getElementById("resourcesModal");
+  if (!modal) return;
+  modal.setAttribute("aria-hidden", "true");
+  modal.style.display = "none";
+  try {
+    document.body.style.overflow = "";
+  } catch (e) {}
+  if (modal._esc) {
+    document.removeEventListener("keydown", modal._esc);
+    modal._esc = null;
+  }
+}
+
+async function deleteResourceForGoal(goalId, resourceId) {
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${goalId}/resource/${resourceId}`,
+      { method: "DELETE" },
+      8000
+    );
+    return res.ok;
+  } catch (e) {
+    console.warn("deleteResourceForGoal error", e);
+    return false;
+  }
+}
+
+function renderResourcesInModal(resources, goalId) {
+  const list = document.getElementById("resourcesModalList");
+  if (!list) return;
+  if (!Array.isArray(resources) || resources.length === 0) {
+    list.innerHTML =
+      '<div class="resources-empty">No resources for this goal</div>';
+    return;
+  }
+  list.innerHTML = "";
+  resources.forEach((resource) => {
+    const card = document.createElement("div");
+    card.className = "resource-card";
+    card.dataset.id = resource._id;
+
+    const topRow = document.createElement("div");
+    topRow.className = "resource-card-top";
+
+    const faviconDiv = document.createElement("div");
+    faviconDiv.className = "resource-favicon";
+    if (resource.url && resource.url.trim()) {
+      const img = document.createElement("img");
+      img.src = getFaviconUrl(resource.url);
+      img.alt = "";
+      img.onerror = () => (faviconDiv.innerHTML = "🔗");
+      faviconDiv.appendChild(img);
+    } else {
+      faviconDiv.innerHTML = "📝";
+    }
+
+    const contentDiv = document.createElement("div");
+    contentDiv.className = "resource-content";
+    if (resource.url && resource.url.trim()) {
+      const a = document.createElement("a");
+      a.href = resource.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.className = "resource-url-text";
+      a.textContent = getUrlTitle(resource.url);
+      a.title = resource.url;
+      contentDiv.appendChild(a);
+    }
+    if (resource.note && resource.note.trim()) {
+      const p = document.createElement("p");
+      p.className = "resource-note-text";
+      p.textContent = resource.note;
+      contentDiv.appendChild(p);
+    }
+
+    topRow.appendChild(faviconDiv);
+    topRow.appendChild(contentDiv);
+    card.appendChild(topRow);
+
+    const actions = document.createElement("div");
+    actions.className = "resource-actions";
+    if (resource.url && resource.url.trim()) {
+      const openBtn = document.createElement("button");
+      openBtn.className = "resource-open-btn";
+      openBtn.textContent = "Open";
+      openBtn.onclick = () =>
+        window.open(resource.url, "_blank", "noopener,noreferrer");
+      actions.appendChild(openBtn);
+    }
+    const delBtn = document.createElement("button");
+    delBtn.className = "resource-delete-btn";
+    delBtn.innerHTML = "×";
+    delBtn.title = "Delete resource";
+    delBtn.onclick = async () => {
+      if (!confirm("Delete this resource?")) return;
+      delBtn.disabled = true;
+      const ok = await deleteResourceForGoal(goalId, resource._id);
+      if (ok) {
+        // refresh list
+        const resources2 = await fetchResourcesForGoal(goalId);
+        renderResourcesInModal(resources2, goalId);
+        showToast("Resource deleted");
+      } else {
+        showToast("Failed to delete resource");
+        delBtn.disabled = false;
+      }
+    };
+    actions.appendChild(delBtn);
+
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
+
+// Add resource
+async function addResource() {
+  if (!state || !state._id) {
+    showToast("Please select a goal first");
+    return;
+  }
+
+  const rawUrl = resourceUrlInput.value.trim();
+  const note = resourceNoteInput.value.trim();
+
+  // Validate: at least one field required
+  if (!rawUrl && !note) {
+    showToast("Please enter a URL or a note");
+    return;
+  }
+
+  // Normalize URL if provided: allow users to paste example.com and auto-prepend https://
+  let normalizedUrl = rawUrl || "";
+  if (normalizedUrl && !/^https?:\/\//i.test(normalizedUrl)) {
+    normalizedUrl = "https://" + normalizedUrl;
+  }
+
+  // Validate normalized URL (if provided)
+  if (normalizedUrl && !isValidUrl(normalizedUrl)) {
+    showToast("Please enter a valid URL (e.g. https://example.com)");
+    return;
+  }
+
+  try {
+    addResourceBtn.disabled = true;
+    addResourceBtn.textContent = "Adding...";
+
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/add-resource`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalizedUrl, note }),
+      },
+      8000
+    );
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to add resource");
+    }
+
+    // Clear inputs
+    resourceUrlInput.value = "";
+    resourceNoteInput.value = "";
+
+    // Refresh resources list
+    await renderResources();
+    showToast("Resource added successfully");
+  } catch (err) {
+    console.error("Add resource error", err);
+    if (err.message.includes("already exists")) {
+      showToast("This URL is already saved for this goal");
+    } else {
+      showToast(err.message || "Failed to add resource");
+    }
+  } finally {
+    addResourceBtn.disabled = false;
+    addResourceBtn.textContent = "Add";
+  }
+}
+
+// Delete resource
+async function deleteResource(resourceId) {
+  if (!state || !state._id) return;
+  if (!confirm("Delete this resource?")) return;
+
+  try {
+    const res = await fetchWithTimeout(
+      `${API_BASE}/goals/${state._id}/resource/${resourceId}`,
+      { method: "DELETE" },
+      8000
+    );
+
+    if (!res.ok) {
+      throw new Error("Failed to delete resource");
+    }
+
+    await renderResources();
+    showToast("Resource deleted");
+  } catch (err) {
+    console.error("Delete resource error", err);
+    showToast("Failed to delete resource");
+  }
+}
+
+// Add event listener for add resource button
+if (addResourceBtn) {
+  addResourceBtn.addEventListener("click", addResource);
+}
+
+// Add enter key support for URL input
+if (resourceUrlInput) {
+  resourceUrlInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      addResource();
+    }
+  });
+}
+
 // init
+// resources modal event wiring
+const _resourcesModal = document.getElementById("resourcesModal");
+const _closeResourcesModalBtn = document.getElementById(
+  "closeResourcesModalBtn"
+);
+if (_closeResourcesModalBtn)
+  _closeResourcesModalBtn.addEventListener("click", closeResourcesModal);
+if (_resourcesModal) {
+  _resourcesModal.addEventListener("click", (e) => {
+    // close when clicking on backdrop (has data-close)
+    if (e.target && e.target.dataset && e.target.dataset.close)
+      closeResourcesModal();
+  });
+}
 // helper utilities: fetch timeout, toast, button states, local cache and sync queue
 function fetchWithTimeout(url, opts = {}, timeout = 8000) {
   const controller = new AbortController();
@@ -1218,7 +1774,20 @@ function fetchWithTimeout(url, opts = {}, timeout = 8000) {
       } catch (e) {}
       return res;
     })
-    .finally(() => clearTimeout(id));
+    .finally(() => clearTimeout(id))
+    .catch((err) => {
+      // Normalize AbortError (which some browsers surface as "signal is aborted without reason")
+      if (
+        err &&
+        (err.name === "AbortError" ||
+          err.message === "signal is aborted without reason")
+      ) {
+        const e = new Error("request timeout");
+        e.name = "TimeoutError";
+        throw e;
+      }
+      throw err;
+    });
 }
 
 function showToast(msg, ms = 3500) {
@@ -1360,6 +1929,16 @@ async function flushSyncQueue() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ badgeId: p.badgeId }),
+            },
+            9000
+          );
+        } else if (item.type === "set_default_goal") {
+          const p = item.payload;
+          await fetchWithTimeout(
+            `${API_BASE}/goals/${p.goalId}/set-default`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
             },
             9000
           );
@@ -1668,7 +2247,7 @@ function renderGoalCards() {
   }
   for (const g of goals) {
     const card = document.createElement("div");
-    card.className = "goal-card";
+    card.className = g.isDefault ? "goal-card is-default" : "goal-card";
     card.dataset.id = g._id || "";
 
     // Title (top)
@@ -1694,6 +2273,35 @@ function renderGoalCards() {
       g.totalDays || 30
     } days`;
 
+    // Default goal radio button (above action row)
+    const defaultRow = document.createElement("div");
+    defaultRow.className = "goal-default-row";
+
+    const defaultLabel = document.createElement("label");
+    defaultLabel.className = g.isDefault
+      ? "default-goal-label is-default"
+      : "default-goal-label";
+
+    const defaultRadio = document.createElement("input");
+    defaultRadio.type = "radio";
+    defaultRadio.name = "defaultGoal";
+    defaultRadio.value = g._id;
+    defaultRadio.className = "default-goal-radio";
+    defaultRadio.checked = g.isDefault || false;
+    defaultRadio.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        setDefaultGoal(g._id);
+      }
+    });
+
+    const defaultText = document.createElement("span");
+    defaultText.textContent = "Default";
+    defaultText.className = "default-goal-text";
+
+    defaultLabel.appendChild(defaultRadio);
+    defaultLabel.appendChild(defaultText);
+    defaultRow.appendChild(defaultLabel);
+
     // bottom action row
     const actionRow = document.createElement("div");
     actionRow.className = "goal-card-right";
@@ -1714,15 +2322,28 @@ function renderGoalCards() {
       btn.disabled = true;
       if (todayIdx === 0) btn.title = "Goal hasn't started yet";
     } else {
-      btn.textContent = "Mark Today";
+      btn.textContent = "Mark"; // shorter label to keep button compact
       btn.addEventListener("click", () => markTodayForGoal(g._id, btn, g));
     }
 
     actionRow.appendChild(btn);
 
+    // Resource button (opens modal showing resources for this goal)
+    const resBtn = document.createElement("button");
+    resBtn.className = "open-res-btn";
+    resBtn.type = "button";
+    resBtn.setAttribute("aria-label", "Open resources for this goal");
+    resBtn.textContent = "Resources";
+    resBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openResourcesModal(g._id);
+    });
+    actionRow.appendChild(resBtn);
+
     card.appendChild(title);
     card.appendChild(streakWrap);
     card.appendChild(progress);
+    card.appendChild(defaultRow);
     card.appendChild(actionRow);
 
     container.appendChild(card);

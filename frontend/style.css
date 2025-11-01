@@ -13,6 +13,7 @@ body {
   color: #0f172a;
   margin: 0;
   padding: 20px;
+  padding-top: 2px !important;
   display: flex;
   justify-content: center;
 }
@@ -30,7 +31,7 @@ body {
 }
 h1 {
   text-align: center;
-  margin: 8px 0 18px;
+  margin: 8px 0 10px;
 }
 .goal-setup {
   display: flex;
@@ -44,7 +45,7 @@ h1 {
   gap: 12px;
   align-items: center;
   justify-content: center;
-  margin: 10px 0 16px;
+  margin: 8px 0 10px;
 }
 .reminder-inline-left {
   display: flex;
@@ -81,7 +82,7 @@ h1 {
 }
 
 .reminder-inline-time select {
-  padding: 8px 6px;
+  padding: 4px 6px;
   border-radius: 6px;
   border: 1px solid #e6eef8;
   background: white;
@@ -743,19 +744,32 @@ select:focus {
 /* Right-side panel: compact goal summary cards */
 .app-grid {
   display: grid;
-  grid-template-columns: 1fr 200px; /* slightly narrower right panel */
-  gap: 16px;
+  /* left panel, center, right panel - increasing right panel width slightly */
+  grid-template-columns: 240px 1.4fr 220px;
+  gap: 18px;
   align-items: start;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px; /* allow a bit more room so center isn't compressed */
+}
+
+@media (max-width: 1200px) {
+  .app-grid {
+    grid-template-columns: 220px 1fr 200px;
+  }
 }
 
 @media (max-width: 1000px) {
   .app-grid {
     grid-template-columns: 1fr; /* stack on smaller screens */
   }
+  .left-panel {
+    order: 3; /* show resources at bottom on mobile */
+  }
   .right-panel {
     order: 2;
+  }
+  .container {
+    order: 1;
   }
 }
 
@@ -786,8 +800,8 @@ select:focus {
   justify-content: flex-start; /* place title at top */
   gap: 8px;
   width: 170px; /* slightly larger card width */
-  height: 160px; /* increased height so button fits comfortably */
-  padding: 12px;
+  height: 180px; /* increased height so button fits comfortably */
+  padding: 10px;
   background: white;
   border-radius: 10px;
   border: 1px solid #eef6ff;
@@ -813,7 +827,7 @@ select:focus {
   text-align: center;
   width: 100%;
   line-height: 1.05;
-  margin: 4px 0 2px 0;
+  margin: 0 0 2px 0;
   word-break: break-word;
   /* ensure it's visible even in small cards */
   overflow: visible;
@@ -830,6 +844,59 @@ select:focus {
   justify-content: center;
   width: 100%;
   margin-top: auto; /* push action row to bottom so it won't overflow */
+}
+
+/* Default goal radio button row */
+.goal-default-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 2px 0;
+}
+
+.default-goal-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  transition: all 160ms ease;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.default-goal-label:hover {
+  color: var(--accent);
+  background: rgba(30, 144, 255, 0.1);
+}
+
+/* Highlight when this goal is selected as default */
+.default-goal-label.is-default {
+  /* color: var(--accent); */
+  background: rgba(30, 144, 255, 0.15);
+  font-weight: 600;
+  border-radius: 7px;
+}
+
+.default-goal-radio {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.default-goal-text {
+  font-weight: 500;
+  user-select: none;
+}
+
+/* Add subtle border to default goal card */
+.goal-card.is-default {
+  border-color: var(--accent);
+  box-shadow: 0 8px 18px rgba(30, 144, 255, 0.15);
 }
 
 .streak-big {
@@ -871,7 +938,7 @@ select:focus {
   border: none;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
   color: white;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-radius: 999px;
   cursor: pointer;
   font-size: 12px;
@@ -888,6 +955,55 @@ select:focus {
 .mark-today-btn:disabled {
   opacity: 0.7;
   cursor: default;
+}
+
+/* Resources button on goal cards - secondary/outline style to sit next to primary mark button */
+.open-res-btn {
+  appearance: none;
+  border: 1px solid #e6eef8;
+  background: white;
+  color: #071033;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 140ms ease, background 140ms ease,
+    border-color 140ms ease;
+}
+.open-res-btn:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+.open-res-btn:active {
+  transform: translateY(0);
+}
+.open-res-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Resources modal close button */
+.resources-modal-header button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.resources-modal-header button:hover {
+  background: rgba(2, 6, 23, 0.04);
+}
+.resources-modal-header button:focus {
+  outline: 2px solid rgba(30, 144, 255, 0.18);
 }
 
 .card-spinner {
@@ -1109,5 +1225,304 @@ select:focus {
     text-align: center; /* center the title above the cards */
     font-family: inherit;
     line-height: 1.1;
+  }
+}
+
+/* === Study Resources - Left Panel === */
+.left-panel {
+  background: #fbfdff;
+  border-radius: 12px;
+  padding: 10px 8px 12px 8px; /* reduce left padding to nudge closer to left edge */
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.06);
+  border: 1px solid #eef6ff;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 20px;
+}
+
+.left-panel-header h2 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.resource-input-compact {
+  display: flex;
+  flex-direction: column; /* stack vertically to fit narrow left panel */
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.resource-field-group {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 100%;
+}
+
+.resource-url-input,
+.resource-note-input {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.resource-url-input:focus,
+.resource-note-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(30, 144, 255, 0.08);
+}
+
+.resource-note-input {
+  resize: vertical;
+  min-height: 32px;
+  max-height: 80px;
+}
+
+.add-resource-btn {
+  padding: 10px 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.08s;
+  width: 100%; /* full width to sit under inputs */
+  box-sizing: border-box;
+}
+
+.add-resource-btn:hover {
+  background: #1873d9;
+}
+
+.add-resource-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.resource-helper {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+/* Responsive: stack on narrow screens */
+/* keep stacked layout on all sizes so left panel displays inputs clearly */
+
+/* Resources List - Compact */
+.resources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resource-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.resource-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-color: #cbd5e1;
+}
+
+.resource-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resource-favicon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  font-size: 14px;
+}
+
+.resource-favicon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.resource-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.resource-url-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-url-text:hover {
+  text-decoration: underline;
+}
+
+.resource-note-text {
+  font-size: 11px;
+  color: #64748b;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 4px 0 0 0;
+  line-height: 1.4;
+}
+
+.resource-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+
+.resource-open-btn,
+.resource-delete-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 500;
+}
+
+.resource-open-btn {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.resource-open-btn:hover {
+  background: #bae6fd;
+}
+
+.resource-delete-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 4px 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.resource-delete-btn:hover {
+  background: #fecaca;
+}
+
+.resources-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 16px 8px;
+  font-size: 12px;
+}
+
+@media (max-width: 1000px) {
+  .left-panel {
+    max-height: none;
+    position: static;
+  }
+}
+
+/* Resources Modal (glass backdrop) */
+.resources-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+.resources-modal[aria-hidden="false"] {
+  display: flex;
+}
+.resources-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 15, 25, 0.35);
+  backdrop-filter: blur(6px) saturate(1.05);
+}
+.resources-modal-panel {
+  position: relative;
+  width: min(680px, calc(100% - 48px));
+  max-height: 80vh;
+  overflow: auto;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(255, 255, 255, 0.96)
+  );
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(2, 6, 23, 0.28);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  padding: 12px;
+  z-index: 2;
+}
+.resources-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.resources-modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.resources-modal-body {
+  padding-top: 6px;
+}
+.resources-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.resources-modal .resource-card {
+  border-radius: 8px;
+  padding: 10px;
+}
+.resources-modal .resource-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+  .resources-modal-panel {
+    width: calc(100% - 24px);
+    max-height: 88vh;
+    padding: 10px;
+  }
+  /* Stack action buttons vertically on small screens for better tap targets */
+  .resources-modal .resource-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .resources-modal .resource-open-btn,
+  .resources-modal .resource-delete-btn {
+    width: 100%;
   }
 }

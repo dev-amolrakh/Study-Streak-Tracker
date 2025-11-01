@@ -103,6 +103,54 @@ const BADGES = [
   },
 ];
 
+const fs = require("fs");
+const path = require("path");
+const SUBS_FILE = path.join(__dirname, "subscriptions.json");
+
+// Endpoint to receive Push subscriptions from clients
+app.post("/subscribe", async (req, res) => {
+  try {
+    const sub = req.body;
+    if (!sub || !sub.endpoint)
+      return res.status(400).json({ error: "invalid subscription" });
+    let subs = [];
+    try {
+      if (fs.existsSync(SUBS_FILE)) {
+        subs = JSON.parse(fs.readFileSync(SUBS_FILE, "utf8")) || [];
+      }
+    } catch (e) {
+      console.warn("Unable to read existing subscriptions", e);
+      subs = [];
+    }
+    // avoid duplicates by endpoint
+    if (!subs.find((s) => s.endpoint === sub.endpoint)) {
+      subs.push(sub);
+      try {
+        fs.writeFileSync(SUBS_FILE, JSON.stringify(subs, null, 2), "utf8");
+      } catch (e) {
+        console.warn("Failed to persist subscription", e);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("subscribe error", err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Admin helper: list stored subscriptions (useful for local testing)
+app.get("/subscriptions", (req, res) => {
+  try {
+    let subs = [];
+    if (fs.existsSync(SUBS_FILE))
+      subs = JSON.parse(fs.readFileSync(SUBS_FILE, "utf8")) || [];
+    res.json({ subscriptions: subs });
+  } catch (e) {
+    console.warn("Failed to read subscriptions", e);
+    res.json({ subscriptions: [] });
+  }
+});
+
 // Return badge definitions
 app.get("/badges", (req, res) => {
   res.json(BADGES);
@@ -111,7 +159,14 @@ app.get("/badges", (req, res) => {
 // Return badges status for a specific goal
 app.get("/goals/:id/badges", async (req, res) => {
   try {
-    const doc = await Streak.findById(req.params.id);
+    const goalId = req.params.id;
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    const doc = await Streak.findById(goalId);
     if (!doc) return res.status(404).json({ error: "no goal found" });
 
     // compute eligibility and claim state
@@ -145,9 +200,16 @@ app.get("/goals/:id/badges", async (req, res) => {
 // Claim a badge for a specific goal
 app.post("/goals/:id/claim-badge", async (req, res) => {
   try {
+    const goalId = req.params.id;
     const { badgeId } = req.body || {};
     if (!badgeId) return res.status(400).json({ error: "badgeId required" });
-    const doc = await Streak.findById(req.params.id);
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    const doc = await Streak.findById(goalId);
     if (!doc) return res.status(404).json({ error: "no goal found" });
     const badgeDef = BADGES.find((b) => b.id === badgeId);
     if (!badgeDef) return res.status(400).json({ error: "unknown badge" });
@@ -209,7 +271,14 @@ app.get("/goals", async (req, res) => {
 
 app.get("/goals/:id", async (req, res) => {
   try {
-    const data = await Streak.findById(req.params.id);
+    const goalId = req.params.id;
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    const data = await Streak.findById(goalId);
     if (!data) return res.status(404).json({ error: "not found" });
     res.json(data);
   } catch (err) {
@@ -231,8 +300,15 @@ app.get("/get-goal", async (req, res) => {
 
 app.post("/goals/:id/update-streak", async (req, res) => {
   try {
+    const goalId = req.params.id;
     const body = req.body;
-    const doc = await Streak.findById(req.params.id);
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    const doc = await Streak.findById(goalId);
     if (!doc) return res.status(404).json({ error: "no goal found" });
 
     let days = Array.from(new Set(doc.daysCompleted || []));
@@ -279,6 +355,45 @@ app.post("/goals/:id/update-streak", async (req, res) => {
 
     await doc.save();
     res.json(doc);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Set a goal as default (unsets any other default goal)
+app.post("/goals/:id/set-default", async (req, res) => {
+  try {
+    const goalId = req.params.id;
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    // First, unset any existing default goal
+    await Streak.updateMany({ isDefault: true }, { isDefault: false });
+
+    // Then set the specified goal as default
+    const doc = await Streak.findById(goalId);
+    if (!doc) return res.status(404).json({ error: "goal not found" });
+
+    doc.isDefault = true;
+    await doc.save();
+
+    res.json({ success: true, message: "Default goal set successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Get the default goal
+app.get("/goals/default", async (req, res) => {
+  try {
+    const defaultGoal = await Streak.findOne({ isDefault: true });
+    if (!defaultGoal) return res.json(null);
+    res.json(defaultGoal);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "server error" });
@@ -386,6 +501,100 @@ app.delete("/goals/:id", async (req, res) => {
   try {
     const doc = await Streak.findByIdAndDelete(req.params.id);
     if (!doc) return res.status(404).json({ error: "not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Add resource to a goal
+app.post("/goals/:id/add-resource", async (req, res) => {
+  try {
+    const { url, note } = req.body;
+    const doc = await Streak.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+
+    // Ensure at least one of url or note is present
+    if (!url?.trim() && !note?.trim()) {
+      return res.status(400).json({ error: "url or note required" });
+    }
+
+    // Normalize and validate URL if provided
+    let normalizedUrl = url?.trim() || "";
+    if (normalizedUrl) {
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = "https://" + normalizedUrl;
+      }
+      // remove trailing slashes
+      normalizedUrl = normalizedUrl.replace(/\/+$|\s+/g, "");
+
+      // validate via URL constructor
+      try {
+        new URL(normalizedUrl);
+      } catch (e) {
+        return res.status(400).json({ error: "invalid URL format" });
+      }
+
+      // Check for duplicate URL (compare normalized, case-insensitive)
+      const existingResource = (doc.resources || []).find(
+        (r) => r.url && r.url.toLowerCase() === normalizedUrl.toLowerCase()
+      );
+      if (existingResource) {
+        return res.status(409).json({ error: "resource URL already exists" });
+      }
+    }
+
+    const newResource = {
+      url: normalizedUrl || "",
+      note: note?.trim() || "",
+      createdAt: new Date(),
+    };
+
+    doc.resources = doc.resources || [];
+    doc.resources.push(newResource);
+    await doc.save();
+
+    res.json({
+      success: true,
+      resource: doc.resources[doc.resources.length - 1],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Get all resources for a goal
+app.get("/goals/:id/resources", async (req, res) => {
+  try {
+    const doc = await Streak.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+    res.json({ resources: doc.resources || [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Delete a specific resource
+app.delete("/goals/:id/resource/:rid", async (req, res) => {
+  try {
+    const doc = await Streak.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+
+    const resourceId = req.params.rid;
+    const initialLength = (doc.resources || []).length;
+
+    doc.resources = (doc.resources || []).filter(
+      (r) => r._id.toString() !== resourceId
+    );
+
+    if (doc.resources.length === initialLength) {
+      return res.status(404).json({ error: "resource not found" });
+    }
+
+    await doc.save();
     res.json({ success: true });
   } catch (err) {
     console.error(err);

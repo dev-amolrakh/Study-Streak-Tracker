@@ -47,6 +47,46 @@
   </head>
   <body>
     <div class="app-grid">
+      <!-- Left-side compact resources panel -->
+      <aside id="leftPanel" class="left-panel" aria-label="Study Resources">
+        <header class="left-panel-header">
+          <h2>📚 Resources</h2>
+        </header>
+        <div class="resource-input-compact">
+          <div class="resource-field-group">
+            <input
+              id="resourceUrlInput"
+              type="text"
+              placeholder="URL (optional) — e.g. example.com or https://..."
+              class="resource-url-input"
+              aria-label="Resource URL (optional)"
+            />
+            <small class="resource-helper"
+              >URL is optional — you can save a note without a link</small
+            >
+          </div>
+
+          <textarea
+            id="resourceNoteInput"
+            placeholder="Notes (optional)"
+            class="resource-note-input"
+            rows="1"
+            aria-label="Notes (optional)"
+          ></textarea>
+
+          <button
+            id="addResourceBtn"
+            class="add-resource-btn"
+            aria-label="Add resource"
+          >
+            Add
+          </button>
+        </div>
+        <div id="resourcesList" class="resources-list">
+          <!-- Resource cards will be dynamically added here -->
+        </div>
+      </aside>
+
       <main class="container">
         <h1>Study Streak Tracker</h1>
 
@@ -161,6 +201,7 @@
         <section class="calendar">
           <div id="calendarGrid" class="grid"></div>
         </section>
+
         <!-- Badges action area placed below the streak/calendar controls -->
         <section class="badges-actions">
           <div class="badges-actions-inner">
@@ -207,6 +248,28 @@
         </header>
         <div class="badges-modal-body">
           <div id="badgesGrid" class="badges-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resources modal (glass backdrop) -->
+    <div
+      id="resourcesModal"
+      class="resources-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+    >
+      <div class="resources-modal-backdrop" data-close="true"></div>
+      <div class="resources-modal-panel" role="document">
+        <header class="resources-modal-header">
+          <h2 id="resourcesModalTitle">Resources</h2>
+          <button id="closeResourcesModalBtn" aria-label="Close">×</button>
+        </header>
+        <div class="resources-modal-body">
+          <div id="resourcesModalList" class="resources-modal-list">
+            <!-- resources will be rendered here -->
+          </div>
         </div>
       </div>
     </div>
