@@ -115,19 +115,32 @@ const BADGE_DEFS = [
   { id: "30-day", days: 30 },
   { id: "60-day", days: 60 },
   { id: "100-day", days: 100 },
+  { id: "goal-completion", days: 0 }, // Special case - goal completion badge
 ];
 
 function updateBadgeIndicator() {
   if (!openBadgesBtn) return;
   const current =
     state && Number(state.currentStreak) ? Number(state.currentStreak) : 0;
+  const totalDays =
+    state && Number(state.totalDays) ? Number(state.totalDays) : 30;
+  const completedDays =
+    state && state.daysCompleted ? state.daysCompleted.length : 0;
   const claimedSet = new Set(
     state && state.claimedBadges ? state.claimedBadges : []
   );
+
   // determine if there is any badge the user is eligible for but hasn't claimed yet
-  const hasNew = BADGE_DEFS.some(
-    (b) => current >= b.days && !claimedSet.has(b.id)
-  );
+  const hasNew = BADGE_DEFS.some((b) => {
+    if (b.id === "goal-completion") {
+      // For goal completion badge, check if all days are completed
+      return completedDays >= totalDays && !claimedSet.has(b.id);
+    } else {
+      // For streak-based badges, check current streak
+      return current >= b.days && !claimedSet.has(b.id);
+    }
+  });
+
   const existing = openBadgesBtn.querySelector(".badge-indicator");
   if (hasNew && !existing) {
     const dot = document.createElement("span");
@@ -355,6 +368,12 @@ function updateClaimedBadgesUI(claimed) {
       days: 100,
       img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
     },
+    {
+      id: "goal-completion",
+      title: "Goal Completion Badge",
+      days: 0,
+      img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1762017561/goal-completetion-badge_bdcbxn.png",
+    },
   ];
   const IMAGES = BADGES.reduce((acc, b) => {
     acc[b.id] = b.img;
@@ -442,21 +461,39 @@ async function fetchBadgesForGoal() {
           days: 100,
           img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
         },
+        {
+          id: "goal-completion",
+          title: "Goal Completion Badge",
+          days: 0,
+          img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1762017561/goal-completetion-badge_bdcbxn.png",
+        },
       ];
       const current = state && state.currentStreak ? state.currentStreak : 0;
+      const totalDays = state && state.totalDays ? state.totalDays : 30;
+      const completedDays =
+        state && state.daysCompleted ? state.daysCompleted.length : 0;
       const earnedSet = new Set(state && state.badges ? state.badges : []);
       const claimedSet = new Set(
         state && state.claimedBadges ? state.claimedBadges : []
       );
-      const items = localBADGES.map((b) => ({
-        id: b.id,
-        title: b.title,
-        days: b.days,
-        img: b.img,
-        earned: earnedSet.has(b.id),
-        claimed: claimedSet.has(b.id),
-        eligible: current >= b.days,
-      }));
+      const items = localBADGES.map((b) => {
+        let eligible;
+        if (b.id === "goal-completion") {
+          eligible = completedDays >= totalDays;
+        } else {
+          eligible = current >= b.days;
+        }
+
+        return {
+          id: b.id,
+          title: b.title,
+          days: b.days,
+          img: b.img,
+          earned: earnedSet.has(b.id),
+          claimed: claimedSet.has(b.id),
+          eligible: eligible,
+        };
+      });
       showToast("Using local badge data (offline)");
       return items;
     } catch (inner) {
@@ -516,7 +553,12 @@ function renderBadgesModal(items) {
 
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.textContent = `${b.days} day${b.days > 1 ? "s" : ""}`;
+    // Don't show "0 days" for goal completion badge
+    if (b.id === "goal-completion") {
+      meta.textContent = "Complete all goal days";
+    } else {
+      meta.textContent = `${b.days} day${b.days > 1 ? "s" : ""}`;
+    }
     card.appendChild(meta);
 
     if (!b.eligible) {

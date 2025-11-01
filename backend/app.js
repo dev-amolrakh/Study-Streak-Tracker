@@ -101,6 +101,12 @@ const BADGES = [
     days: 100,
     img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1761925156/100-days-badge_tz1v54.png",
   },
+  {
+    id: "goal-completion",
+    title: "Goal Completion Badge",
+    days: 0, // Special case - not streak-based
+    img: "https://res.cloudinary.com/dqj2nmhkg/image/upload/v1762017561/goal-completetion-badge_bdcbxn.png",
+  },
 ];
 
 const fs = require("fs");
@@ -171,10 +177,19 @@ app.get("/goals/:id/badges", async (req, res) => {
 
     // compute eligibility and claim state
     const current = doc.currentStreak || 0;
+    const totalDays = doc.totalDays || 30;
+    const completedDays = doc.daysCompleted.length;
     const earnedSet = new Set(doc.badges || []);
     const claimedSet = new Set(doc.claimedBadges || []);
 
     const items = BADGES.map((b) => {
+      let eligible;
+      if (b.id === "goal-completion") {
+        eligible = completedDays >= totalDays;
+      } else {
+        eligible = current >= b.days;
+      }
+
       return {
         id: b.id,
         title: b.title,
@@ -182,7 +197,7 @@ app.get("/goals/:id/badges", async (req, res) => {
         img: b.img,
         earned: earnedSet.has(b.id),
         claimed: claimedSet.has(b.id),
-        eligible: current >= b.days,
+        eligible: eligible,
       };
     });
     res.json({
@@ -215,8 +230,18 @@ app.post("/goals/:id/claim-badge", async (req, res) => {
     if (!badgeDef) return res.status(400).json({ error: "unknown badge" });
 
     const current = doc.currentStreak || 0;
-    if (current < badgeDef.days)
-      return res.status(403).json({ error: "not eligible yet" });
+    const totalDays = doc.totalDays || 30;
+    const completedDays = doc.daysCompleted.length;
+
+    // Check eligibility based on badge type
+    let eligible = false;
+    if (badgeDef.id === "goal-completion") {
+      eligible = completedDays >= totalDays;
+    } else {
+      eligible = current >= badgeDef.days;
+    }
+
+    if (!eligible) return res.status(403).json({ error: "not eligible yet" });
 
     doc.claimedBadges = Array.from(
       new Set([...(doc.claimedBadges || []), badgeId])
@@ -351,6 +376,14 @@ app.post("/goals/:id/update-streak", async (req, res) => {
     if (doc.currentStreak >= 30) badges.add("30-day");
     if (doc.currentStreak >= 60) badges.add("60-day");
     if (doc.currentStreak >= 100) badges.add("100-day");
+
+    // Check for goal completion badge
+    const totalDays = doc.totalDays || 30;
+    const completedDays = doc.daysCompleted.length;
+    if (completedDays >= totalDays) {
+      badges.add("goal-completion");
+    }
+
     doc.badges = Array.from(badges);
 
     await doc.save();
@@ -489,6 +522,33 @@ app.post("/goals/:id/edit", async (req, res) => {
     const { currentStreak, bestStreak } = computeStreaks(doc.daysCompleted);
     doc.currentStreak = currentStreak;
     doc.bestStreak = Math.max(doc.bestStreak || 0, bestStreak);
+
+    // Re-evaluate badges including goal completion badge
+    const badges = new Set(doc.badges || []);
+    if (doc.currentStreak >= 1) badges.add("day-1");
+    if (doc.currentStreak >= 7) badges.add("7-day");
+    if (doc.currentStreak >= 15) badges.add("15-day");
+    if (doc.currentStreak >= 30) badges.add("30-day");
+    if (doc.currentStreak >= 60) badges.add("60-day");
+    if (doc.currentStreak >= 100) badges.add("100-day");
+
+    // Check for goal completion badge
+    const completedDays = doc.daysCompleted.length;
+    if (completedDays >= doc.totalDays) {
+      badges.add("goal-completion");
+    } else {
+      badges.delete("goal-completion"); // Remove if no longer eligible
+    }
+
+    doc.badges = Array.from(badges);
+
+    // Also remove from claimed badges if no longer eligible
+    if (completedDays < doc.totalDays) {
+      doc.claimedBadges = (doc.claimedBadges || []).filter(
+        (b) => b !== "goal-completion"
+      );
+    }
+
     await doc.save();
     res.json(doc);
   } catch (err) {
