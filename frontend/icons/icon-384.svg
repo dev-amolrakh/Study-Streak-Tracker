@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384">
+  <rect width="384" height="384" fill="#007BFF" rx="48"/>
+  <g transform="translate(192,192)">
+    <path d="M-48,-96 C-48,-96 -64,-48 -32,-32 C-16,-16 0,-32 16,-16 C32,0 48,-32 48,-64 C48,-96 32,-112 16,-128 C0,-144 -16,-128 -32,-144 C-48,-128 -48,-96 -48,-96 Z" 
+          fill="#FF6B35"/>
+    <path d="M-32,-64 C-32,-64 -40,-32 -16,-24 C-8,-16 0,-24 8,-16 C16,-8 24,-24 24,-40 C24,-56 16,-64 8,-72 C0,-80 -8,-72 -16,-80 C-24,-72 -32,-64 -32,-64 Z" 
+          fill="#FFE66D"/>
+    <circle cx="0" cy="32" r="40" fill="#FF6B35"/>
+    <text x="0" y="104" text-anchor="middle" font-family="Arial" font-size="48" font-weight="bold" fill="white">STREAK</text>
+  </g>
+</svg>

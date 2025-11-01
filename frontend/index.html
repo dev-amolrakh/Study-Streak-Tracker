@@ -8,32 +8,80 @@
     <meta name="theme-color" content="#007BFF" />
     <link
       rel="icon"
-      href="https://via.placeholder.com/192.png?text=Streak"
+      href="/icons/icon-192.svg"
       sizes="192x192"
     />
     <link
       rel="apple-touch-icon"
-      href="https://via.placeholder.com/192.png?text=Streak"
+      href="/icons/icon-192.svg"
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <style>
-      /* Minimal install button style */
+      /* Enhanced install button style */
       #installBtn {
         position: fixed;
-        bottom: 16px;
-        right: 16px;
-        background: #007bff;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #007bff, #0056b3);
         color: #fff;
         border: none;
-        padding: 10px 14px;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+        padding: 12px 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 123, 255, 0.3);
         font-weight: 600;
+        font-size: 14px;
         display: none;
         z-index: 9999;
+        cursor: pointer;
+        transform: translateY(0);
+        transition: all 0.3s ease;
+        animation: pulse 2s infinite;
       }
       #installBtn.show {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #installBtn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+      }
+      #installBtn:active {
+        transform: translateY(0);
+      }
+      #installBtn::before {
+        content: "📱";
+        font-size: 16px;
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      
+      /* PWA install prompt */
+      .install-prompt {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 123, 255, 0.95);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        font-size: 14px;
+        z-index: 10000;
+        display: none;
+        max-width: 90vw;
+        text-align: center;
+      }
+      .install-prompt.show {
         display: block;
+        animation: slideDown 0.3s ease;
+      }
+      @keyframes slideDown {
+        from { transform: translateX(-50%) translateY(-100%); }
+        to { transform: translateX(-50%) translateY(0); }
       }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -274,7 +322,10 @@
       </div>
     </div>
 
-    <button id="installBtn" aria-hidden="true">Add to Home Screen</button>
+    <button id="installBtn" aria-hidden="true">Install App</button>
+    <div id="installPrompt" class="install-prompt" aria-hidden="true">
+      Install Study Streak Tracker for quick access and notifications! 
+    </div>
     <script src="script.js"></script>
   </body>
 </html>

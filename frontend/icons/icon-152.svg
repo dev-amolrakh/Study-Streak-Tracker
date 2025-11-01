@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="152" height="152" viewBox="0 0 152 152">
+  <rect width="152" height="152" fill="#007BFF" rx="19"/>
+  <g transform="translate(76,76)">
+    <path d="M-19,-38 C-19,-38 -25,-19 -13,-13 C-6,-6 0,-13 6,-6 C13,0 19,-13 19,-25 C19,-38 13,-44 6,-50 C0,-57 -6,-50 -13,-57 C-19,-50 -19,-38 -19,-38 Z" 
+          fill="#FF6B35"/>
+    <path d="M-13,-25 C-13,-25 -16,-13 -6,-10 C-3,-6 0,-10 3,-6 C6,-3 10,-10 10,-16 C10,-22 6,-25 3,-28 C0,-32 -3,-28 -6,-32 C-10,-28 -13,-25 -13,-25 Z" 
+          fill="#FFE66D"/>
+    <circle cx="0" cy="13" r="16" fill="#FF6B35"/>
+    <text x="0" y="41" text-anchor="middle" font-family="Arial" font-size="19" font-weight="bold" fill="white">🔥</text>
+  </g>
+</svg>

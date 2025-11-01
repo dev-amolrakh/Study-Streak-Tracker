@@ -2090,6 +2090,25 @@ function setupReminderScheduler() {
 function showNotification(text) {
   if (!("Notification" in window)) return;
   if (Notification.permission === "granted") {
+    const notificationOptions = {
+      body: text,
+      icon: "/icons/icon-192.svg",
+      badge: "/icons/icon-72.svg",
+      tag: "study-streak-reminder",
+      vibrate: [200, 100, 200],
+      requireInteraction: true,
+      actions: [
+        {
+          action: "mark-complete",
+          title: "Mark Complete ✅"
+        },
+        {
+          action: "snooze", 
+          title: "Remind in 1 hour ⏰"
+        }
+      ]
+    };
+
     // Prefer showing notifications via the service worker registration when
     // available. This tends to work better when the page is backgrounded.
     try {
@@ -2098,22 +2117,31 @@ function showNotification(text) {
           .getRegistration()
           .then((reg) => {
             if (reg && reg.showNotification) {
-              reg.showNotification("Study Reminder", { body: text, icon: "" });
+              reg.showNotification("Time to study! 📚", notificationOptions);
               return;
             }
-            // fallback to window Notification
-            new Notification("Study Reminder", { body: text, icon: "" });
+            // fallback to window Notification (limited features)
+            new Notification("Time to study! 📚", {
+              body: text,
+              icon: notificationOptions.icon
+            });
           })
           .catch(() => {
             // on error fallback to window Notification
-            new Notification("Study Reminder", { body: text, icon: "" });
+            new Notification("Time to study! 📚", {
+              body: text,
+              icon: notificationOptions.icon
+            });
           });
         return;
       }
     } catch (e) {
       // best-effort: continue to fallback
     }
-    new Notification("Study Reminder", { body: text, icon: "" });
+    new Notification("Time to study! 📚", {
+      body: text,
+      icon: notificationOptions.icon
+    });
   }
 }
 
@@ -2422,6 +2450,33 @@ async function markTodayForGoal(goalId, btn, goalObj) {
   }
 }
 
+// Listen for messages from service worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    console.log("Message from SW:", event.data);
+    
+    if (event.data && event.data.action === "mark-today-complete") {
+      // Mark today's study as complete
+      if (state && state.goal) {
+        markDay(new Date(), true);
+        showToast("Study marked as complete! 🔥");
+      }
+    }
+  });
+}
+
+// Handle URL parameters for actions (like from notification shortcuts)
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("action") === "mark-today") {
+  // Delay to ensure DOM is loaded
+  setTimeout(() => {
+    if (state && state.goal) {
+      markDay(new Date(), true);
+      showToast("Study marked as complete from shortcut! 🔥");
+    }
+  }, 500);
+}
+
 populateTimeSelectors();
 fetchGoals();
 
@@ -2437,18 +2492,40 @@ if ("serviceWorker" in navigator) {
       if ("Notification" in window) {
         Notification.requestPermission().then(async (permission) => {
           if (permission === "granted") {
-            const icon = "https://via.placeholder.com/192.png?text=Streak";
+            const icon = "/icons/icon-192.svg";
+            
+            // Set default 8 PM reminder if not already set
+            const currentState = localStorage.getItem("sst_state");
+            if (currentState) {
+              const parsedState = JSON.parse(currentState);
+              if (!parsedState.reminderTime) {
+                parsedState.reminderTime = "20:00"; // 8 PM default
+                parsedState.remindersEnabled = true;
+                localStorage.setItem("sst_state", JSON.stringify(parsedState));
+                console.log("Set default 8 PM reminder");
+              }
+            }
+            
             // Prefer showing via service worker when available (more reliable)
             try {
               if (registration && registration.showNotification) {
-                registration.showNotification("Notifications enabled!", {
-                  body: "Daily reminders are enabled. You will receive notifications.",
+                registration.showNotification("Study notifications enabled! 🔥", {
+                  body: "You'll get daily reminders to keep your streak going. Default time: 8 PM",
                   icon,
+                  badge: "/icons/icon-72.svg",
+                  tag: "setup-complete",
+                  requireInteraction: false,
+                  actions: [
+                    {
+                      action: "view-settings",
+                      title: "Change Time ⚙️"
+                    }
+                  ]
                 });
               } else {
                 // Fallback: use the Notification constructor in-page
-                new Notification("Notifications enabled!", {
-                  body: "Daily reminders are enabled. You will receive notifications.",
+                new Notification("Study notifications enabled! 🔥", {
+                  body: "You'll get daily reminders to keep your streak going. Default time: 8 PM",
                   icon,
                 });
               }
@@ -2481,29 +2558,60 @@ window.addEventListener("beforeinstallprompt", (e) => {
   // Prevent the mini-infobar from appearing on mobile
   e.preventDefault();
   _deferredInstallPrompt = e;
+  
   const btn = document.getElementById("installBtn");
+  const prompt = document.getElementById("installPrompt");
+  
   if (btn) {
     btn.classList.add("show");
     btn.setAttribute("aria-hidden", "false");
+    
+    // Show install prompt after a delay
+    setTimeout(() => {
+      if (prompt && !localStorage.getItem("sst_install_prompt_dismissed")) {
+        prompt.classList.add("show");
+        prompt.setAttribute("aria-hidden", "false");
+        
+        // Auto-hide prompt after 5 seconds
+        setTimeout(() => {
+          prompt.classList.remove("show");
+          prompt.setAttribute("aria-hidden", "true");
+          localStorage.setItem("sst_install_prompt_dismissed", "true");
+        }, 5000);
+      }
+    }, 3000);
+    
     const onClick = async () => {
       btn.disabled = true;
+      btn.textContent = "Installing...";
+      
       try {
         await _deferredInstallPrompt.prompt();
         const choice = await _deferredInstallPrompt.userChoice;
+        
         if (choice && choice.outcome === "accepted") {
           console.log("User accepted the A2HS prompt");
           btn.classList.remove("show");
           btn.setAttribute("aria-hidden", "true");
+          if (prompt) {
+            prompt.classList.remove("show");
+            prompt.setAttribute("aria-hidden", "true");
+          }
+          showToast("App installed successfully! 📱");
         } else {
           console.log("User dismissed the A2HS prompt");
           btn.disabled = false;
+          btn.textContent = "Install App";
+          showToast("You can install the app anytime using the button ↘️");
         }
       } catch (err) {
         console.warn("A2HS prompt error", err);
         btn.disabled = false;
+        btn.textContent = "Install App";
       }
       _deferredInstallPrompt = null;
     };
+    
     btn.addEventListener("click", onClick, { once: true });
   }
 });
@@ -2511,9 +2619,252 @@ window.addEventListener("beforeinstallprompt", (e) => {
 window.addEventListener("appinstalled", () => {
   // Hide the install UI, app is installed
   const btn = document.getElementById("installBtn");
+  const prompt = document.getElementById("installPrompt");
+  
   if (btn) {
     btn.classList.remove("show");
     btn.setAttribute("aria-hidden", "true");
   }
+  
+  if (prompt) {
+    prompt.classList.remove("show");
+    prompt.setAttribute("aria-hidden", "true");
+  }
+  
   console.log("PWA was installed");
+  
+  // Show success message and set installed flag
+  localStorage.setItem("sst_app_installed", "true");
+  showToast("🎉 Study Streak Tracker installed! Open from your home screen anytime.");
+  
+  // Log analytics event (if you add analytics later)
+  console.log("PWA_INSTALLED", { timestamp: Date.now() });
 });
+
+/* 
+================================================================================
+FUTURE BACKEND PUSH NOTIFICATION INTEGRATION EXAMPLES
+================================================================================
+
+1. FIREBASE CLOUD MESSAGING (FCM) SETUP:
+   
+   // Add to <head> in index.html:
+   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+   
+   // Initialize Firebase (add your config):
+   const firebaseConfig = {
+     apiKey: "your-api-key",
+     authDomain: "your-project.firebaseapp.com", 
+     projectId: "your-project-id",
+     storageBucket: "your-project.appspot.com",
+     messagingSenderId: "123456789",
+     appId: "your-app-id"
+   };
+   
+   firebase.initializeApp(firebaseConfig);
+   const messaging = firebase.messaging();
+   
+   // Get FCM token for this device:
+   async function getFCMToken() {
+     try {
+       const token = await messaging.getToken({
+         vapidKey: "your-vapid-key"
+       });
+       console.log('FCM Token:', token);
+       // Send this token to your server
+       return token;
+     } catch (error) {
+       console.error('Error getting FCM token:', error);
+     }
+   }
+   
+   // Handle foreground messages:
+   messaging.onMessage((payload) => {
+     console.log('Foreground message:', payload);
+     // Show custom notification
+   });
+
+2. NODE.JS WEB-PUSH SERVER SETUP:
+   
+   // Install: npm install web-push
+   const webpush = require('web-push');
+   
+   // Generate VAPID keys (run once):
+   const vapidKeys = webpush.generateVAPIDKeys();
+   console.log('Public Key:', vapidKeys.publicKey);
+   console.log('Private Key:', vapidKeys.privateKey);
+   
+   // Set VAPID details:
+   webpush.setVapidDetails(
+     'mailto:your-email@example.com',
+     vapidKeys.publicKey,
+     vapidKeys.privateKey
+   );
+   
+   // Send notification:
+   async function sendNotification(subscription, payload) {
+     try {
+       await webpush.sendNotification(subscription, JSON.stringify(payload));
+       console.log('Notification sent successfully');
+     } catch (error) {
+       console.error('Error sending notification:', error);
+     }
+   }
+   
+   // Example payload:
+   const notificationPayload = {
+     title: "Study Reminder 📚",
+     body: "Time to continue your streak!",
+     icon: "/icons/icon-192x192.png",
+     badge: "/icons/badge-72x72.png",
+     data: {
+       url: "/",
+       timestamp: Date.now()
+     }
+   };
+   
+   // Schedule daily reminders (using node-cron):
+   const cron = require('node-cron');
+   
+   // Send at 8 PM every day
+   cron.schedule('0 20 * * *', () => {
+     // Get all user subscriptions from your database
+     // Send notifications to each user
+   });
+
+3. ENHANCED PUSH SUBSCRIPTION MANAGEMENT:
+   
+   // Store subscription in your database:
+   async function saveSubscription(subscription) {
+     try {
+       const response = await fetch('/api/subscribe', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           subscription: subscription,
+           userId: getCurrentUserId(), // Your user identification
+           preferences: {
+             reminderTime: '20:00',
+             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+           }
+         })
+       });
+       
+       if (response.ok) {
+         console.log('Subscription saved to server');
+         localStorage.setItem('push_subscription_saved', 'true');
+       }
+     } catch (error) {
+       console.error('Failed to save subscription:', error);
+     }
+   }
+   
+   // Unsubscribe from push notifications:
+   async function unsubscribeFromPush() {
+     try {
+       const registration = await navigator.serviceWorker.ready;
+       const subscription = await registration.pushManager.getSubscription();
+       
+       if (subscription) {
+         await subscription.unsubscribe();
+         
+         // Remove from server
+         await fetch('/api/unsubscribe', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ subscription })
+         });
+         
+         console.log('Successfully unsubscribed from push notifications');
+       }
+     } catch (error) {
+       console.error('Error unsubscribing:', error);
+     }
+   }
+
+4. ADVANCED SERVICE WORKER PUSH HANDLING:
+   
+   // Add to service-worker.js:
+   self.addEventListener('push', (event) => {
+     if (!event.data) return;
+     
+     const data = event.data.json();
+     const options = {
+       body: data.body,
+       icon: data.icon || '/icons/icon-192x192.png',
+       badge: data.badge || '/icons/badge-72x72.png',
+       vibrate: [200, 100, 200],
+       data: data.data || {},
+       actions: [
+         {
+           action: 'mark-complete',
+           title: 'Mark Complete',
+           icon: '/icons/check.png'
+         },
+         {
+           action: 'view-app',
+           title: 'Open App',
+           icon: '/icons/open.png'
+         }
+       ],
+       requireInteraction: true,
+       tag: data.tag || 'default'
+     };
+     
+     event.waitUntil(
+       self.registration.showNotification(data.title, options)
+     );
+   });
+
+5. BACKGROUND SYNC FOR OFFLINE ACTIONS:
+   
+   // Register background sync:
+   if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
+     navigator.serviceWorker.ready.then((registration) => {
+       return registration.sync.register('background-sync');
+     });
+   }
+   
+   // In service worker:
+   self.addEventListener('sync', (event) => {
+     if (event.tag === 'background-sync') {
+       event.waitUntil(syncOfflineActions());
+     }
+   });
+   
+   async function syncOfflineActions() {
+     const offlineActions = getOfflineActions(); // Your implementation
+     for (const action of offlineActions) {
+       try {
+         await sendToServer(action);
+         removeOfflineAction(action);
+       } catch (error) {
+         console.error('Sync failed for action:', action, error);
+       }
+     }
+   }
+
+6. TESTING PUSH NOTIFICATIONS:
+   
+   // Test notification from browser console:
+   function testNotification() {
+     if ('serviceWorker' in navigator && 'Notification' in window) {
+       navigator.serviceWorker.ready.then((registration) => {
+         registration.showNotification('Test Notification', {
+           body: 'This is a test notification',
+           icon: '/icons/icon-192x192.png',
+           badge: '/icons/badge-72x72.png',
+           vibrate: [200, 100, 200],
+           tag: 'test-notification'
+         });
+       });
+     }
+   }
+   
+   // Call testNotification() in console to test
+
+================================================================================
+*/

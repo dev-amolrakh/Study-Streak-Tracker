@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <rect width="72" height="72" fill="#007BFF" rx="8"/>
+  <g transform="translate(36,36)">
+    <path d="M-9,-18 C-9,-18 -12,-9 -6,-6 C-3,-3 0,-6 3,-3 C6,0 9,-6 9,-12 C9,-18 6,-21 3,-24 C0,-27 -3,-24 -6,-27 C-9,-24 -9,-18 -9,-18 Z" 
+          fill="#FF6B35"/>
+    <circle cx="0" cy="6" r="7" fill="#FF6B35"/>
+    <text x="0" y="19" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="white">🔥</text>
+  </g>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#007BFF" rx="64"/>
+  <g transform="translate(256,256)">
+    <!-- Larger flame icon -->
+    <path d="M-64,-128 C-64,-128 -85,-64 -43,-43 C-21,-21 0,-43 21,-21 C43,0 64,-43 64,-85 C64,-128 43,-149 21,-171 C0,-192 -21,-171 -43,-192 C-64,-171 -64,-128 -64,-128 Z" 
+          fill="#FF6B35"/>
+    <path d="M-43,-85 C-43,-85 -53,-43 -21,-32 C-11,-21 0,-32 11,-21 C21,-11 32,-32 32,-53 C32,-75 21,-85 11,-96 C0,-107 -11,-96 -21,-107 C-32,-96 -43,-85 -43,-85 Z" 
+          fill="#FFE66D"/>
+    <circle cx="0" cy="43" r="53" fill="#FF6B35"/>
+    <text x="0" y="139" text-anchor="middle" font-family="Arial" font-size="64" font-weight="bold" fill="white">STREAK</text>
+  </g>
+</svg>
