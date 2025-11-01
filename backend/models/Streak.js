@@ -33,6 +33,10 @@ const StreakSchema = new mongoose.Schema(
     },
     // flag to mark this goal as the default one to display on app load
     isDefault: { type: Boolean, default: false },
+    // flag to mark this goal as completed
+    completed: { type: Boolean, default: false },
+    // date when the goal was completed
+    completedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -286,8 +286,24 @@ app.post("/goals", async (req, res) => {
 
 app.get("/goals", async (req, res) => {
   try {
-    const data = await Streak.find({}).sort({ createdAt: -1 });
+    // Only return active (non-completed) goals by default
+    const data = await Streak.find({ completed: { $ne: true } }).sort({
+      createdAt: -1,
+    });
     res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Get all completed goals (must come before /goals/:id to avoid conflicts)
+app.get("/goals/completed", async (req, res) => {
+  try {
+    const completedGoals = await Streak.find({ completed: true }).sort({
+      completedAt: -1,
+    });
+    res.json(completedGoals);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "server error" });
@@ -377,7 +393,7 @@ app.post("/goals/:id/update-streak", async (req, res) => {
     if (doc.currentStreak >= 60) badges.add("60-day");
     if (doc.currentStreak >= 100) badges.add("100-day");
 
-    // Check for goal completion badge
+    // Check for goal completion badge (but don't auto-complete)
     const totalDays = doc.totalDays || 30;
     const completedDays = doc.daysCompleted.length;
     if (completedDays >= totalDays) {
@@ -656,6 +672,59 @@ app.delete("/goals/:id/resource/:rid", async (req, res) => {
 
     await doc.save();
     res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Complete a goal
+app.post("/goals/:id/complete", async (req, res) => {
+  try {
+    const goalId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    const doc = await Streak.findById(goalId);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+
+    // Mark as completed
+    doc.completed = true;
+    doc.completedAt = new Date();
+
+    // Award goal completion badge if not already earned
+    if (!doc.badges.includes("goal-completion")) {
+      doc.badges.push("goal-completion");
+    }
+
+    await doc.save();
+    res.json({ success: true, message: "Goal completed successfully!" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server error" });
+  }
+});
+
+// Uncomplete a goal (optional - allows users to reopen completed goals)
+app.post("/goals/:id/uncomplete", async (req, res) => {
+  try {
+    const goalId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(goalId)) {
+      return res.status(400).json({ error: "invalid goal id format" });
+    }
+
+    const doc = await Streak.findById(goalId);
+    if (!doc) return res.status(404).json({ error: "no goal found" });
+
+    // Unmark as completed
+    doc.completed = false;
+    doc.completedAt = null;
+
+    await doc.save();
+    res.json({ success: true, message: "Goal reopened successfully!" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "server error" });
