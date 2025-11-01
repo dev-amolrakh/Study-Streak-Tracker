@@ -865,12 +865,22 @@ function build24hFromInputs() {
   return String(hh).padStart(2, "0") + ":" + mm;
 }
 
-async function fetchGoals() {
+async function fetchGoals(retryCount = 0) {
+  const maxRetries = 2;
+  const timeouts = [15000, 20000, 25000]; // Progressive timeout: 15s, 20s, 25s
+  
   try {
-    const res = await fetchWithTimeout(`${API_BASE}/goals`, {}, 8000);
+    console.log(`Fetching goals (attempt ${retryCount + 1}/${maxRetries + 1})`);
+    const res = await fetchWithTimeout(`${API_BASE}/goals`, {}, timeouts[retryCount] || 15000);
+    
+    if (!res.ok) {
+      throw new Error(`Server responded with ${res.status}: ${res.statusText}`);
+    }
+    
     const data = await res.json();
     goals = data || [];
     populateGoalSelect();
+    
     if (goals.length > 0) {
       // Try to find default goal in the fetched goals first
       let goalToSelect = null;
@@ -886,7 +896,7 @@ async function fetchGoals() {
           const defaultRes = await fetchWithTimeout(
             `${API_BASE}/goals/default`,
             {},
-            8000
+            12000
           );
           const defaultGoalData = await defaultRes.json();
           if (defaultGoalData && defaultGoalData._id) {
@@ -930,7 +940,34 @@ async function fetchGoals() {
     }
   } catch (err) {
     console.error("fetchGoals error", err);
-    showToast("Failed to load goals from server; offline mode enabled.");
+    
+    // Retry logic for network issues
+    if (retryCount < maxRetries && (
+      err.name === "TimeoutError" || 
+      err.message.includes("fetch") || 
+      err.message.includes("network") ||
+      err.message.includes("timeout")
+    )) {
+      console.log(`Retrying in ${(retryCount + 1) * 2} seconds...`);
+      showToast(`Connection issue. Retrying... (${retryCount + 1}/${maxRetries})`, 2000);
+      
+      // Progressive delay: 2s, 4s, 6s
+      await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+      return fetchGoals(retryCount + 1);
+    }
+    
+    // Show appropriate error message based on error type
+    let errorMessage = "Failed to load goals from server; offline mode enabled.";
+    if (err.name === "TimeoutError") {
+      errorMessage = "Server is taking too long to respond. Using offline mode.";
+    } else if (err.message.includes("500")) {
+      errorMessage = "Server error. Please try again later. Using offline mode.";
+    } else if (err.message.includes("404")) {
+      errorMessage = "Goals endpoint not found. Using offline mode.";
+    }
+    
+    showToast(errorMessage, 4000);
+    
     // fallback to local cache
     const cached = loadCache();
     if (cached) {
@@ -1766,6 +1803,9 @@ function fetchWithTimeout(url, opts = {}, timeout = 8000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   const merged = { ...opts, signal: controller.signal };
+  
+  console.log(`Making request to ${url} with ${timeout}ms timeout`);
+  
   return fetch(url, merged)
     .then((res) => {
       try {
@@ -1782,12 +1822,32 @@ function fetchWithTimeout(url, opts = {}, timeout = 8000) {
         (err.name === "AbortError" ||
           err.message === "signal is aborted without reason")
       ) {
-        const e = new Error("request timeout");
+        const e = new Error(`Request timeout after ${timeout}ms for ${url}`);
         e.name = "TimeoutError";
+        e.url = url;
+        e.timeout = timeout;
         throw e;
       }
+      
+      // Add more context to network errors
+      if (err.message.includes('fetch')) {
+        err.message = `Network error when fetching ${url}: ${err.message}`;
+      }
+      
       throw err;
     });
+}
+
+// Connection health check
+async function checkConnection() {
+  try {
+    // Use a lightweight endpoint to check connectivity
+    const res = await fetchWithTimeout(`${API_BASE}/server-date`, {}, 5000);
+    return res.ok;
+  } catch (err) {
+    console.warn("Connection check failed:", err.message);
+    return false;
+  }
 }
 
 function showToast(msg, ms = 3500) {
@@ -2478,7 +2538,17 @@ if (urlParams.get("action") === "mark-today") {
 }
 
 populateTimeSelectors();
-fetchGoals();
+
+// Initialize app with connection awareness
+(async function initializeApp() {
+  try {
+    showToast("Loading your goals...", 2000);
+    await fetchGoals();
+  } catch (error) {
+    console.error("App initialization error:", error);
+    showToast("App loaded in offline mode", 3000);
+  }
+})();
 
 // --- Service worker, Notifications and Add to Home Screen (A2HS) ---
 let _deferredInstallPrompt = null;
