@@ -13,49 +13,49 @@
   "icons": [
     {
       "src": "./icons/icon-72.svg",
-      "sizes": "72x72",
+      "sizes": "74x72",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "./icons/icon-96.svg",
-      "sizes": "96x96",
+      "sizes": "99x96",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "./icons/icon-128.svg",
-      "sizes": "128x128",
+      "sizes": "128x125",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "./icons/icon-144.svg",
-      "sizes": "144x144",
+      "sizes": "144x140",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "./icons/icon-152.svg",
-      "sizes": "152x152",
+      "sizes": "152x148",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "./icons/icon-192.svg",
-      "sizes": "192x192",
+      "sizes": "192x187",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
       "src": "./icons/icon-384.svg",
-      "sizes": "384x384",
+      "sizes": "384x374",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "./icons/icon-512.svg",
-      "sizes": "512x512",
+      "sizes": "512x499",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
