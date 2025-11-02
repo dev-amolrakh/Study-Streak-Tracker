@@ -6,9 +6,22 @@
     <title>Study Streak Tracker</title>
     <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#007BFF" />
-    <link rel="icon" href="./icons/icon-192.svg" sizes="192x192" />
-    <link rel="apple-touch-icon" href="./icons/icon-192.svg" />
+
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/svg+xml" href="./icons/icon-192.svg" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      sizes="any"
+      href="./icons/icon-192.svg"
+    />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-192.svg" />
+    <link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.svg" />
+
+    <!-- iOS Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Study Streak" />
     <style>
       /* Enhanced install button style */
       #installBtn {
@@ -361,6 +374,11 @@
     <div id="installPrompt" class="install-prompt" aria-hidden="true">
       Install Study Streak Tracker for quick access and notifications!
     </div>
+
+    <!-- Offline-first system scripts -->
+    <script src="db-manager.js"></script>
+    <script src="offline-queue.js"></script>
+    <script src="reminder-manager.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

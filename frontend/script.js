@@ -45,6 +45,54 @@ const CACHE_KEY = "sst_cache";
 let lastServerDate = null; // ISO string from server
 let reminderIntervalId = null;
 
+// Initialize offline-first system
+let offlineQueue = null;
+let reminderManager = null;
+
+// Initialize managers when available
+async function initializeOfflineSystem() {
+  try {
+    console.log("[App] Initializing offline-first system...");
+
+    // Initialize IndexedDB
+    if (window.dbManager) {
+      await window.dbManager.init();
+      console.log("[App] ✓ IndexedDB initialized");
+    }
+
+    // Initialize Offline Queue Manager
+    if (window.OfflineQueueManager) {
+      offlineQueue = new window.OfflineQueueManager(window.dbManager, API_BASE);
+      console.log("[App] ✓ Offline Queue Manager initialized");
+
+      // Trigger initial sync if online
+      if (navigator.onLine) {
+        setTimeout(() => offlineQueue.syncAll(), 3000);
+      }
+    }
+
+    // Initialize Reminder Manager
+    if (window.ReminderManager) {
+      reminderManager = new window.ReminderManager(window.dbManager);
+      await reminderManager.init();
+      console.log("[App] ✓ Reminder Manager initialized");
+    }
+
+    console.log("[App] ✓ Offline-first system ready");
+    return true;
+  } catch (error) {
+    console.error("[App] Error initializing offline system:", error);
+    return false;
+  }
+}
+
+// Call initialization after DOM is loaded
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeOfflineSystem);
+} else {
+  initializeOfflineSystem();
+}
+
 const QUOTES = [
   "Keep going — consistency beats intensity.",
   "Small steps every day lead to huge results.",
@@ -1200,12 +1248,15 @@ async function toggleDay(day, node) {
       );
       return;
     }
+
     // verify server date to avoid system-clock manipulation
+    let serverDateStr = null;
     try {
       const svr = await fetchWithTimeout(`${API_BASE}/server-date`, {}, 5000);
       const js = await svr.json();
-      const serverDateStr = (js && js.serverDate) || lastServerDate;
+      serverDateStr = (js && js.serverDate) || lastServerDate;
       if (serverDateStr) {
+        lastServerDate = serverDateStr;
         const serverDay = serverDateStr.split("T")[0];
         const localDay = new Date().toISOString().split("T")[0];
         if (serverDay !== localDay) {
@@ -1214,9 +1265,10 @@ async function toggleDay(day, node) {
         }
       }
     } catch (e) {
-      // if server date check fails, proceed but log (conservative approach)
-      console.warn("server-date check failed", e);
+      // if server date check fails, log and continue (may be offline)
+      console.warn("server-date check failed, device may be offline", e);
     }
+
     // restriction: allow only marking the current goal day (computed from startDate)
     const totalDays = state.totalDays || 30;
     let todayIndex = 0;
@@ -1258,46 +1310,154 @@ async function toggleDay(day, node) {
       showToast("Today's completion is already recorded.");
       return;
     }
-    const res = await fetchWithTimeout(
-      `${API_BASE}/goals/${state._id}/update-streak`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ day, mark: !completed }),
-      },
-      9000
-    );
-    const data = await res.json();
-    state = data;
-    // re-render
-    renderCalendar(data.totalDays || 30, data.daysCompleted || []);
-    currentStreakEl.textContent = data.currentStreak || 0;
-    bestStreakEl.textContent = data.bestStreak || 0;
-    totalCompletedEl.textContent = (data.daysCompleted || []).length;
-    remainingDaysEl.textContent =
-      (data.totalDays || 30) - (data.daysCompleted || []).length;
-    updateCanvas(
-      ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
-    );
-    try {
-      updateBadgeIndicator();
-    } catch (e) {
-      console.warn("badge indicator error", e);
+
+    // Try to sync immediately if online
+    if (navigator.onLine) {
+      try {
+        const res = await fetchWithTimeout(
+          `${API_BASE}/goals/${state._id}/update-streak`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ day, mark: !completed }),
+          },
+          9000
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          state = data;
+          // re-render
+          renderCalendar(data.totalDays || 30, data.daysCompleted || []);
+          currentStreakEl.textContent = data.currentStreak || 0;
+          bestStreakEl.textContent = data.bestStreak || 0;
+          totalCompletedEl.textContent = (data.daysCompleted || []).length;
+          remainingDaysEl.textContent =
+            (data.totalDays || 30) - (data.daysCompleted || []).length;
+          updateCanvas(
+            ((data.daysCompleted || []).length / (data.totalDays || 30)) * 100
+          );
+          try {
+            updateBadgeIndicator();
+          } catch (e) {
+            console.warn("badge indicator error", e);
+          }
+          try {
+            updateMarkCompletedButton(data);
+          } catch (e) {
+            console.warn("mark completed button error", e);
+          }
+          flashSyncIcon();
+          showToast("✓ Streak marked successfully!");
+          return;
+        } else {
+          // Server error, queue for offline sync
+          throw new Error(`Server error: ${res.status}`);
+        }
+      } catch (err) {
+        console.error("Online sync failed, queuing for offline:", err);
+        // Fall through to offline queue
+      }
     }
-    try {
-      updateMarkCompletedButton(data);
-    } catch (e) {
-      console.warn("mark completed button error", e);
+
+    // OFFLINE MODE: Queue the action using IndexedDB
+    console.log(
+      "[App] Device offline or sync failed, queuing streak action..."
+    );
+
+    if (offlineQueue) {
+      const result = await offlineQueue.addStreakAction(state._id, day, true);
+
+      if (result.success) {
+        // Optimistically update UI
+        if (!state.daysCompleted) state.daysCompleted = [];
+        if (!state.daysCompleted.includes(day)) {
+          state.daysCompleted.push(day);
+          state.daysCompleted.sort((a, b) => a - b);
+        }
+
+        // Recalculate streaks locally
+        const streaks = computeStreaksLocal(state.daysCompleted);
+        state.currentStreak = streaks.currentStreak;
+        state.bestStreak = Math.max(state.bestStreak || 0, streaks.bestStreak);
+
+        // Update UI
+        renderCalendar(state.totalDays || 30, state.daysCompleted);
+        currentStreakEl.textContent = state.currentStreak || 0;
+        bestStreakEl.textContent = state.bestStreak || 0;
+        totalCompletedEl.textContent = state.daysCompleted.length;
+        remainingDaysEl.textContent =
+          (state.totalDays || 30) - state.daysCompleted.length;
+        updateCanvas(
+          (state.daysCompleted.length / (state.totalDays || 30)) * 100
+        );
+
+        try {
+          updateBadgeIndicator();
+        } catch (e) {
+          console.warn("badge indicator error", e);
+        }
+        try {
+          updateMarkCompletedButton(state);
+        } catch (e) {
+          console.warn("mark completed button error", e);
+        }
+
+        showToast("✓ Offline: Marked and queued for sync");
+        console.log("[App] ✓ Streak action queued successfully");
+      } else if (result.reason === "duplicate") {
+        showToast("Day already marked (duplicate prevented)");
+      } else {
+        showToast("Failed to queue action");
+      }
+    } else {
+      // Fallback to old localStorage queue
+      showToast("Failed to mark day. Action stored locally and will sync.");
+      enqueueSync({
+        type: "toggle_day",
+        payload: { id: state && state._id, day, mark: true },
+      });
     }
-    flashSyncIcon();
   } catch (err) {
     console.error(err);
     showToast("Failed to mark day. Action stored locally and will sync.");
-    enqueueSync({
-      type: "toggle_day",
-      payload: { id: state && state._id, day, mark: true },
-    });
+
+    // Fallback queue
+    if (offlineQueue) {
+      await offlineQueue.addStreakAction(state._id, day, true);
+    } else {
+      enqueueSync({
+        type: "toggle_day",
+        payload: { id: state && state._id, day, mark: true },
+      });
+    }
   }
+}
+
+// Local streak computation helper (mirrors backend logic)
+function computeStreaksLocal(daysArr) {
+  if (!Array.isArray(daysArr)) daysArr = [];
+  const days = Array.from(new Set(daysArr)).sort((a, b) => a - b);
+  let best = 0;
+  let current = 0;
+  let run = 0;
+  for (let i = 0; i < days.length; i++) {
+    if (i === 0 || days[i] === days[i - 1] + 1) {
+      run += 1;
+    } else {
+      run = 1;
+    }
+    if (run > best) best = run;
+  }
+  if (days.length === 0) current = 0;
+  else {
+    current = 1;
+    for (let i = days.length - 1; i > 0; i--) {
+      if (days[i] === days[i - 1] + 1) current += 1;
+      else break;
+    }
+  }
+  return { currentStreak: current, bestStreak: best };
 }
 
 async function resetStreak() {
@@ -2268,6 +2428,23 @@ function showNotification(text) {
 
 async function saveReminderToServer(time, enabled) {
   if (!state || !state._id) return;
+
+  // Save to IndexedDB first for offline persistence
+  if (reminderManager) {
+    try {
+      await reminderManager.saveReminder(
+        state._id,
+        time,
+        enabled,
+        state.goal || "Your goal"
+      );
+      console.log("[App] Reminder saved to IndexedDB");
+    } catch (error) {
+      console.error("[App] Error saving reminder to IndexedDB:", error);
+    }
+  }
+
+  // Try to sync to server
   try {
     const res = await fetchWithTimeout(
       `${API_BASE}/goals/${state._id}/reminder`,
@@ -2282,19 +2459,29 @@ async function saveReminderToServer(time, enabled) {
       const data = await res.json();
       state = data;
       applyStateToUI(data);
-      showToast("Reminder saved");
+      showToast("Reminder saved and synced");
     } else {
       throw new Error("save failed");
     }
   } catch (e) {
     console.warn("saveReminderToServer failed", e);
-    // enqueue a reminder-specific sync item so the reminderTime and enabled flag
-    // are preserved and can be replayed when online.
-    enqueueSync({
-      type: "reminder",
-      payload: { id: state._id, reminderTime: time, enabled: enabled },
-    });
-    showToast("Saved reminder locally; will sync when online");
+
+    // Queue for sync when online
+    if (offlineQueue) {
+      await offlineQueue.addSyncAction("save_reminder", {
+        id: state._id,
+        reminderTime: time,
+        enabled: enabled,
+      });
+      showToast("Reminder saved locally, will sync when online");
+    } else {
+      // Fallback to old queue
+      enqueueSync({
+        type: "reminder",
+        payload: { id: state._id, reminderTime: time, enabled: enabled },
+      });
+      showToast("Saved reminder locally; will sync when online");
+    }
   }
 }
 
@@ -3396,3 +3583,111 @@ async function markGoalAsCompleted(goalId) {
     }
   }
 }
+
+// ===== Service Worker Message Listener =====
+// Handle messages from service worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    console.log("[App] Message from Service Worker:", event.data);
+
+    if (event.data && event.data.type === "SYNC_OFFLINE_QUEUE") {
+      // Service worker requested sync
+      if (offlineQueue) {
+        offlineQueue.syncAll().catch((err) => {
+          console.error("[App] Error syncing from SW message:", err);
+        });
+      }
+    }
+
+    if (event.data && event.data.action === "mark-today-complete") {
+      // User clicked "Mark Complete" from notification
+      console.log("[App] Mark today complete action from notification");
+
+      // Find today's day and mark it
+      if (state && state._id) {
+        const totalDays = state.totalDays || 30;
+        let todayIndex = 0;
+
+        if (state.startDate) {
+          const start = new Date(state.startDate + "T00:00:00");
+          const today = new Date();
+          const startMid = new Date(
+            start.getFullYear(),
+            start.getMonth(),
+            start.getDate()
+          );
+          const todayMid = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+          );
+          const diff = Math.floor((todayMid - startMid) / 86400000) + 1;
+          if (diff >= 1) todayIndex = Math.min(diff, totalDays);
+        } else {
+          todayIndex = Math.min(new Date().getDate(), totalDays);
+        }
+
+        if (todayIndex > 0) {
+          // Find the day element and trigger it
+          const dayElement = document.querySelector(
+            `.day[data-day="${todayIndex}"]`
+          );
+          if (dayElement && !dayElement.classList.contains("completed")) {
+            toggleDay(todayIndex, dayElement);
+          } else {
+            showToast("Today's streak is already marked!");
+          }
+        }
+      } else {
+        showToast("Please select a goal first");
+      }
+    }
+  });
+}
+
+// Handle URL action parameter (e.g., from notification click)
+window.addEventListener("DOMContentLoaded", () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const action = urlParams.get("action");
+
+  if (action === "mark-today") {
+    console.log("[App] Mark today action from URL");
+    showToast("Opening app to mark today...");
+
+    // Wait for app to initialize then mark today
+    setTimeout(() => {
+      if (state && state._id) {
+        const totalDays = state.totalDays || 30;
+        let todayIndex = 0;
+
+        if (state.startDate) {
+          const start = new Date(state.startDate + "T00:00:00");
+          const today = new Date();
+          const startMid = new Date(
+            start.getFullYear(),
+            start.getMonth(),
+            start.getDate()
+          );
+          const todayMid = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+          );
+          const diff = Math.floor((todayMid - startMid) / 86400000) + 1;
+          if (diff >= 1) todayIndex = Math.min(diff, totalDays);
+        } else {
+          todayIndex = Math.min(new Date().getDate(), totalDays);
+        }
+
+        if (todayIndex > 0) {
+          const dayElement = document.querySelector(
+            `.day[data-day="${todayIndex}"]`
+          );
+          if (dayElement && !dayElement.classList.contains("completed")) {
+            toggleDay(todayIndex, dayElement);
+          }
+        }
+      }
+    }, 1500);
+  }
+});
