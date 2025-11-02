@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline System Test - Study Streak Tracker</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    h2 { color: #007bff; margin-top: 0; }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .status { 
+      padding: 10px; 
+      margin: 10px 0; 
+      border-radius: 4px; 
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    .info { background: #d1ecf1; color: #0c5460; }
+    .warning { background: #fff3cd; color: #856404; }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .result {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f9f9f9;
+      border-left: 3px solid #007bff;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 Offline System Diagnostics</h1>
+  <p>Use this page to test and debug the offline-first features.</p>
+
+  <!-- Service Worker Test -->
+  <div class="test-section">
+    <h2>1. Service Worker Status</h2>
+    <button onclick="checkServiceWorker()">Check Service Worker</button>
+    <button onclick="updateServiceWorker()">Force Update SW</button>
+    <div id="swStatus"></div>
+  </div>
+
+  <!-- IndexedDB Test -->
+  <div class="test-section">
+    <h2>2. IndexedDB Status</h2>
+    <button onclick="checkIndexedDB()">Check IndexedDB</button>
+    <button onclick="clearIndexedDB()">Clear All Data</button>
+    <div id="dbStatus"></div>
+  </div>
+
+  <!-- Notification Test -->
+  <div class="test-section">
+    <h2>3. Notification Permission</h2>
+    <button onclick="checkNotificationPermission()">Check Permission</button>
+    <button onclick="requestNotificationPermission()">Request Permission</button>
+    <button onclick="testNotification()">Test Notification</button>
+    <div id="notifStatus"></div>
+  </div>
+
+  <!-- Reminder Test -->
+  <div class="test-section">
+    <h2>4. Reminder System Test</h2>
+    <button onclick="checkReminders()">Check Active Reminders</button>
+    <button onclick="testReminderIn1Min()">Test Reminder (1 min)</button>
+    <button onclick="clearReminders()">Clear All Reminders</button>
+    <div id="reminderStatus"></div>
+  </div>
+
+  <!-- Offline Queue Test -->
+  <div class="test-section">
+    <h2>5. Offline Queue Status</h2>
+    <button onclick="checkQueue()">Check Queue</button>
+    <button onclick="addTestAction()">Add Test Action</button>
+    <button onclick="syncQueue()">Sync Now</button>
+    <button onclick="clearQueue()">Clear Queue</button>
+    <div id="queueStatus"></div>
+  </div>
+
+  <!-- Console Logs -->
+  <div class="test-section">
+    <h2>6. System Logs</h2>
+    <button onclick="clearLogs()">Clear Logs</button>
+    <button onclick="exportLogs()">Export Logs</button>
+    <div id="logs"><pre id="logContent">Logs will appear here...</pre></div>
+  </div>
+
+  <!-- Load required scripts -->
+  <script src="db-manager.js"></script>
+  <script src="offline-queue.js"></script>
+  <script src="reminder-manager.js"></script>
+
+  <script>
+    // Capture console logs
+    const logs = [];
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    console.log = function(...args) {
+      logs.push({ type: 'log', time: new Date().toISOString(), message: args });
+      originalLog.apply(console, args);
+      updateLogDisplay();
+    };
+
+    console.error = function(...args) {
+      logs.push({ type: 'error', time: new Date().toISOString(), message: args });
+      originalError.apply(console, args);
+      updateLogDisplay();
+    };
+
+    console.warn = function(...args) {
+      logs.push({ type: 'warn', time: new Date().toISOString(), message: args });
+      originalWarn.apply(console, args);
+      updateLogDisplay();
+    };
+
+    function updateLogDisplay() {
+      const logContent = document.getElementById('logContent');
+      const last20 = logs.slice(-20);
+      logContent.textContent = last20.map(log => 
+        `[${log.type.toUpperCase()}] ${log.time.split('T')[1].split('.')[0]} - ${log.message.map(m => 
+          typeof m === 'object' ? JSON.stringify(m) : m
+        ).join(' ')}`
+      ).join('\n');
+    }
+
+    function clearLogs() {
+      logs.length = 0;
+      updateLogDisplay();
+    }
+
+    function exportLogs() {
+      const blob = new Blob([JSON.stringify(logs, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `offline-system-logs-${Date.now()}.json`;
+      a.click();
+    }
+
+    // Initialize system - use existing window.dbManager from db-manager.js
+    let testDbManager, testOfflineQueue, testReminderManager;
+
+    async function init() {
+      console.log('Initializing test system...');
+      try {
+        // Use the global dbManager from db-manager.js
+        testDbManager = window.dbManager;
+        await testDbManager.init();
+        console.log('✓ DBManager initialized');
+
+        testOfflineQueue = new window.OfflineQueueManager(testDbManager, 'https://study-streak-tracker-myz5.vercel.app/api');
+        console.log('✓ OfflineQueue initialized');
+
+        testReminderManager = new window.ReminderManager(testDbManager);
+        await testReminderManager.init();
+        console.log('✓ ReminderManager initialized');
+
+        console.log('✓ All systems ready');
+      } catch (error) {
+        console.error('✗ Initialization failed:', error);
+      }
+    }
+
+    // Service Worker tests
+    async function checkServiceWorker() {
+      const statusDiv = document.getElementById('swStatus');
+      try {
+        if (!('serviceWorker' in navigator)) {
+          statusDiv.innerHTML = '<div class="status error">Service Workers not supported</div>';
+          return;
+        }
+
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) {
+          statusDiv.innerHTML = '<div class="status warning">No Service Worker registered. Registering now...</div>';
+          const reg = await navigator.serviceWorker.register('/service-worker.js');
+          statusDiv.innerHTML = `<div class="status success">✓ Service Worker registered: ${reg.scope}</div>`;
+        } else {
+          const state = registration.active ? registration.active.state : 'unknown';
+          statusDiv.innerHTML = `
+            <div class="status success">✓ Service Worker active</div>
+            <div class="result">
+              <strong>Scope:</strong> ${registration.scope}<br>
+              <strong>State:</strong> ${state}<br>
+              <strong>Installing:</strong> ${registration.installing ? 'Yes' : 'No'}<br>
+              <strong>Waiting:</strong> ${registration.waiting ? 'Yes' : 'No'}
+            </div>
+          `;
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ Error: ${error.message}</div>`;
+      }
+    }
+
+    async function updateServiceWorker() {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await registration.update();
+          document.getElementById('swStatus').innerHTML = '<div class="status success">✓ Service Worker updated</div>';
+        }
+      } catch (error) {
+        document.getElementById('swStatus').innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    // IndexedDB tests
+    async function checkIndexedDB() {
+      const statusDiv = document.getElementById('dbStatus');
+      try {
+        const supported = testDbManager.isSupported;
+        const stores = ['syncQueue', 'streakActions', 'reminders', 'goalsCache'];
+        
+        let html = `<div class="status ${supported ? 'success' : 'warning'}">
+          ${supported ? '✓ IndexedDB supported' : '⚠ Using LocalStorage fallback'}
+        </div>`;
+
+        for (const store of stores) {
+          const items = await testDbManager.getAll(store);
+          html += `<div class="result"><strong>${store}:</strong> ${items.length} items</div>`;
+        }
+
+        statusDiv.innerHTML = html;
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function clearIndexedDB() {
+      if (!confirm('Clear all offline data?')) return;
+      const statusDiv = document.getElementById('dbStatus');
+      try {
+        const stores = ['syncQueue', 'streakActions', 'reminders', 'goalsCache'];
+        for (const store of stores) {
+          await testDbManager.clear(store);
+        }
+        statusDiv.innerHTML = '<div class="status success">✓ All data cleared</div>';
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    // Notification tests
+    function checkNotificationPermission() {
+      const statusDiv = document.getElementById('notifStatus');
+      const permission = Notification.permission;
+      const colors = { granted: 'success', denied: 'error', default: 'warning' };
+      statusDiv.innerHTML = `<div class="status ${colors[permission]}">
+        Permission: <strong>${permission}</strong>
+      </div>`;
+    }
+
+    async function requestNotificationPermission() {
+      const statusDiv = document.getElementById('notifStatus');
+      try {
+        const permission = await Notification.requestPermission();
+        statusDiv.innerHTML = `<div class="status ${permission === 'granted' ? 'success' : 'error'}">
+          Permission: <strong>${permission}</strong>
+        </div>`;
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function testNotification() {
+      const statusDiv = document.getElementById('notifStatus');
+      try {
+        if (Notification.permission !== 'granted') {
+          statusDiv.innerHTML = '<div class="status error">Permission not granted. Click "Request Permission" first.</div>';
+          return;
+        }
+
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification('Test Notification 🧪', {
+          body: 'This is a test notification from the diagnostic tool',
+          icon: '/icons/icon-192.svg',
+          badge: '/icons/icon-72.svg',
+          tag: 'test',
+          requireInteraction: false
+        });
+
+        statusDiv.innerHTML = '<div class="status success">✓ Notification sent</div>';
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    // Reminder tests
+    async function checkReminders() {
+      const statusDiv = document.getElementById('reminderStatus');
+      try {
+        const reminders = await testDbManager.getAll('reminders');
+        let html = `<div class="status info">${reminders.length} reminder(s) found</div>`;
+        
+        reminders.forEach(r => {
+          const nextTime = r.nextTrigger ? new Date(r.nextTrigger).toLocaleString() : 'Not set';
+          html += `<div class="result">
+            <strong>Goal:</strong> ${r.goalName || r.goalId}<br>
+            <strong>Time:</strong> ${r.reminderTime}<br>
+            <strong>Enabled:</strong> ${r.enabled ? 'Yes' : 'No'}<br>
+            <strong>Next Trigger:</strong> ${nextTime}
+          </div>`;
+        });
+
+        statusDiv.innerHTML = html;
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function testReminderIn1Min() {
+      const statusDiv = document.getElementById('reminderStatus');
+      try {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + 1);
+        const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        await testReminderManager.saveReminder('test-goal-123', time, true, 'Test Goal');
+        statusDiv.innerHTML = `<div class="status success">✓ Reminder set for ${time}</div>`;
+        
+        // Send to service worker
+        const registration = await navigator.serviceWorker.ready;
+        registration.active.postMessage({
+          type: 'CHECK_REMINDERS_NOW'
+        });
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function clearReminders() {
+      if (!confirm('Clear all reminders?')) return;
+      const statusDiv = document.getElementById('reminderStatus');
+      try {
+        await testDbManager.clear('reminders');
+        statusDiv.innerHTML = '<div class="status success">✓ All reminders cleared</div>';
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    // Queue tests
+    async function checkQueue() {
+      const statusDiv = document.getElementById('queueStatus');
+      try {
+        const status = await testOfflineQueue.getQueueStatus();
+        statusDiv.innerHTML = `
+          <div class="status info">Queue Status</div>
+          <div class="result">
+            <strong>Streak Actions:</strong> ${status.streakActions}<br>
+            <strong>Sync Actions:</strong> ${status.syncActions}<br>
+            <strong>Total:</strong> ${status.total}<br>
+            <strong>Online:</strong> ${status.isOnline ? 'Yes' : 'No'}<br>
+            <strong>Syncing:</strong> ${status.isSyncing ? 'Yes' : 'No'}
+          </div>
+        `;
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function addTestAction() {
+      const statusDiv = document.getElementById('queueStatus');
+      try {
+        await testOfflineQueue.addStreakAction('test-goal-123', 15, true);
+        statusDiv.innerHTML = '<div class="status success">✓ Test action added</div>';
+        checkQueue();
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function syncQueue() {
+      const statusDiv = document.getElementById('queueStatus');
+      try {
+        statusDiv.innerHTML = '<div class="status info">Syncing...</div>';
+        await testOfflineQueue.syncAll();
+        checkQueue();
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    async function clearQueue() {
+      if (!confirm('Clear offline queue?')) return;
+      const statusDiv = document.getElementById('queueStatus');
+      try {
+        await testDbManager.clear('syncQueue');
+        await testDbManager.clear('streakActions');
+        statusDiv.innerHTML = '<div class="status success">✓ Queue cleared</div>';
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">✗ ${error.message}</div>`;
+      }
+    }
+
+    // Auto-init
+    window.addEventListener('load', () => {
+      init();
+      checkServiceWorker();
+      checkNotificationPermission();
+    });
+  </script>
+</body>
+</html>
