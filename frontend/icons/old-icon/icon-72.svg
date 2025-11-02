@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <defs>
+    <linearGradient id="bgGradient72" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="flameGradient72" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffee58;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="72" height="72" fill="url(#bgGradient72)" rx="14"/>
+  
+  <g transform="translate(36,36)">
+    <!-- Simplified flame for small size -->
+    <path d="M0,-17 C-5,-17 -8,-13 -8,-8 C-8,-3 -5,1 0,2 C5,1 8,-3 8,-8 C8,-13 5,-17 0,-17 Z" 
+          fill="url(#flameGradient72)" 
+          opacity="0.95"/>
+    
+    <!-- Small streak indicator -->
+    <circle cx="-8" cy="8" r="1.5" fill="#fff" opacity="0.6"/>
+    <circle cx="-4" cy="9" r="1.5" fill="#fff" opacity="0.7"/>
+    <circle cx="0" cy="10" r="1.5" fill="#fff" opacity="0.5"/>
+    <circle cx="4" cy="9" r="1.5" fill="#fff" opacity="0.8"/>
+    <circle cx="8" cy="8" r="1.5" fill="#fff"/>
+  </g>
+</svg>

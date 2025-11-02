@@ -76,9 +76,9 @@
   ],
   "screenshots": [
     {
-      "src": "./icons/screenshot.svg",
+      "src": "./icons/screenshot.jpg",
       "sizes": "540x720",
-      "type": "image/png",
+      "type": "image/jpeg",
       "form_factor": "narrow"
     }
   ]

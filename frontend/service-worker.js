@@ -14,7 +14,7 @@ const ASSETS_TO_CACHE = [
   "/icons/icon-384.svg",
   "/icons/icon-512.svg",
   "/icons/check-icon.svg",
-  "/icons/screenshot.svg",
+  "/icons/screenshot.jpg",
   "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap",
 ];
 
