@@ -56,7 +56,7 @@ async function initializeOfflineSystem() {
     console.log("[App] Initializing offline-first system...");
 
     // Wait a bit to ensure all scripts are loaded
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Initialize IndexedDB
     if (window.dbManager) {
@@ -91,12 +91,12 @@ async function initializeOfflineSystem() {
 
     offlineSystemReady = true;
     console.log("[App] ✓ Offline-first system ready");
-    
+
     // Load reminders from current state if available
     if (state && state._id && state.remindersEnabled && state.reminderTime) {
       await syncReminderToManager(state);
     }
-    
+
     return true;
   } catch (error) {
     console.error("[App] Error initializing offline system:", error);
@@ -107,14 +107,18 @@ async function initializeOfflineSystem() {
 // Helper to sync reminder from state to manager
 async function syncReminderToManager(goalState) {
   if (!reminderManager || !goalState) return;
-  
+
   try {
-    console.log("[App] Syncing reminder to manager:", goalState.goal, goalState.reminderTime);
+    console.log(
+      "[App] Syncing reminder to manager:",
+      goalState.goal,
+      goalState.reminderTime
+    );
     await reminderManager.saveReminder(
       goalState._id,
       goalState.reminderTime,
       goalState.remindersEnabled,
-      goalState.goal || 'Your goal'
+      goalState.goal || "Your goal"
     );
     console.log("[App] ✓ Reminder synced to manager");
   } catch (error) {
@@ -400,14 +404,14 @@ function applyStateToUI(data) {
   }
   // (re)start reminder scheduler if enabled
   setupReminderScheduler();
-  
+
   // Sync reminder to new manager if offline system is ready
   if (offlineSystemReady && data && data._id && data.reminderTime) {
-    syncReminderToManager(data).catch(err => {
+    syncReminderToManager(data).catch((err) => {
       console.warn("Failed to sync reminder to manager:", err);
     });
   }
-  
+
   // update the badges indicator on the Show Badges button
   try {
     updateBadgeIndicator();
@@ -2600,34 +2604,36 @@ if (saveReminderBtn) {
   saveReminderBtn.addEventListener("click", async (e) => {
     e.preventDefault();
     if (!state) return showToast("Select a goal first");
-    
+
     const time = build24hFromInputs();
     const enabled = reminderToggle ? !!reminderToggle.checked : false;
-    
+
     console.log("[App] Saving reminder:", { time, enabled, goal: state.goal });
-    
+
     // Request notification permission if enabling reminders
     if (enabled) {
       if (!("Notification" in window)) {
         return showToast("Notifications are not supported in this browser");
       }
-      
+
       if (Notification.permission !== "granted") {
         console.log("[App] Requesting notification permission...");
         const perm = await Notification.requestPermission();
         console.log("[App] Notification permission:", perm);
-        
+
         if (perm !== "granted") {
-          return showToast("Notification permission is required to enable reminders");
+          return showToast(
+            "Notification permission is required to enable reminders"
+          );
         }
       }
     }
-    
+
     setButtonLoading(saveReminderBtn, true);
     await saveReminderToServer(time, enabled);
     setButtonLoading(saveReminderBtn, false);
     updateReminderStateUI(enabled);
-    
+
     console.log("[App] ✓ Reminder saved successfully");
   });
 }
@@ -3756,28 +3762,31 @@ window.addEventListener("DOMContentLoaded", () => {
 
 // ===== Service Worker Registration =====
 // Register service worker for offline support and background notifications
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/service-worker.js', {
-        scope: '/'
-      });
-      console.log('[App] ✓ Service Worker registered:', registration.scope);
-      
+      const registration = await navigator.serviceWorker.register(
+        "/service-worker.js",
+        {
+          scope: "/",
+        }
+      );
+      console.log("[App] ✓ Service Worker registered:", registration.scope);
+
       // Wait for service worker to be ready
       await navigator.serviceWorker.ready;
-      console.log('[App] ✓ Service Worker is ready');
-      
+      console.log("[App] ✓ Service Worker is ready");
+
       // Subscribe to push notifications if VAPID key is configured
-      if (typeof subscribeUserToPush === 'function') {
-        subscribeUserToPush(registration).catch(err => {
-          console.warn('[App] Push subscription failed:', err);
+      if (typeof subscribeUserToPush === "function") {
+        subscribeUserToPush(registration).catch((err) => {
+          console.warn("[App] Push subscription failed:", err);
         });
       }
     } catch (error) {
-      console.error('[App] ✗ Service Worker registration failed:', error);
+      console.error("[App] ✗ Service Worker registration failed:", error);
     }
   });
 } else {
-  console.warn('[App] Service Workers are not supported in this browser');
+  console.warn("[App] Service Workers are not supported in this browser");
 }

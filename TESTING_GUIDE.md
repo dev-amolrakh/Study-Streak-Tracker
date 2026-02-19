@@ -3,6 +3,7 @@
 ## Prerequisites
 
 Before testing, ensure you have:
+
 1. ✅ Modern browser (Chrome, Firefox, or Edge recommended)
 2. ✅ HTTPS or localhost (Service Workers require secure context)
 3. ✅ Notification permissions enabled
@@ -63,15 +64,18 @@ http-server -p 8080 --cors
 ### Step 2: Test Service Worker Registration
 
 #### What to do:
+
 1. Click **"Check Service Worker"** button
 2. Wait for result
 
 #### Expected Results:
+
 - ✅ Green success message: "✓ Service Worker active"
 - ✅ Console shows: `[App] ✓ Service Worker registered`
 - ✅ DevTools → Application → Service Workers shows "activated and running"
 
 #### If it fails:
+
 - ❌ Check if you're using http://localhost (not file://)
 - ❌ Clear browser cache (Ctrl+Shift+Delete)
 - ❌ Click "Force Update SW" button
@@ -82,21 +86,25 @@ http-server -p 8080 --cors
 ### Step 3: Test IndexedDB
 
 #### What to do:
+
 1. Click **"Check IndexedDB"** button
 2. Verify stores are created
 
 #### Expected Results:
+
 - ✅ "✓ IndexedDB supported" message
 - ✅ Shows 4 stores: syncQueue, streakActions, reminders, goalsCache
 - ✅ Each store shows "0 items" (initially)
 
 #### Verify in DevTools:
+
 1. Go to **Application** tab
 2. Expand **IndexedDB**
 3. Look for **StudyStreakTrackerDB**
 4. Verify 4 object stores exist
 
 #### If it fails:
+
 - ❌ Browser might not support IndexedDB (very rare)
 - ❌ System will fallback to LocalStorage automatically
 - ❌ Check Console for error messages
@@ -106,17 +114,20 @@ http-server -p 8080 --cors
 ### Step 4: Test Notification Permission
 
 #### What to do:
+
 1. Click **"Check Permission"** button
 2. If "default", click **"Request Permission"**
 3. **Grant permission** in browser popup
 4. Click **"Test Notification"** button
 
 #### Expected Results:
+
 - ✅ Permission status shows "granted"
 - ✅ Test notification appears on screen
 - ✅ Notification shows icon and message
 
 #### If it fails:
+
 - ❌ Check if notifications are blocked in browser settings
 - ❌ Chrome: Settings → Privacy and security → Site Settings → Notifications
 - ❌ Try in incognito/private mode
@@ -139,6 +150,7 @@ http-server -p 8080 --cors
 4. Verify reminder is stored with correct time
 
 #### Expected Results:
+
 - ✅ Success message: "✓ Reminder set for HH:MM"
 - ✅ Shows reminder details:
   - Goal: Test Goal
@@ -153,6 +165,7 @@ http-server -p 8080 --cors
 3. Check Console for Service Worker logs
 
 #### Expected Console Logs:
+
 ```
 [ReminderManager] Reminder saved: {...}
 [SW] Checking reminders...
@@ -168,6 +181,7 @@ http-server -p 8080 --cors
 4. **Notification should still appear!** 🎉
 
 #### If reminder doesn't fire:
+
 - ❌ Check if Service Worker is active (DevTools → Application)
 - ❌ Verify notification permission is granted
 - ❌ Check Service Worker console (DevTools → Application → Service Workers → click on service-worker.js)
@@ -186,6 +200,7 @@ http-server -p 8080 --cors
 4. Click **"Check Queue"** again
 
 #### Expected Results:
+
 - ✅ Success: "✓ Test action added"
 - ✅ Queue shows:
   - Streak Actions: 1
@@ -207,6 +222,7 @@ http-server -p 8080 --cors
 2. Should prevent duplicate
 
 #### Expected Results:
+
 - ✅ Console shows: `[DBManager] Duplicate entry detected, skipping`
 - ✅ Queue still shows only 1 action
 
@@ -216,6 +232,7 @@ http-server -p 8080 --cors
 2. Watch Console logs
 
 #### Expected Results:
+
 - ✅ Console shows sync attempts
 - ✅ If online: Syncs to server (may fail if test goalId doesn't exist)
 - ✅ If offline: Logs error and keeps in queue
@@ -229,6 +246,7 @@ http-server -p 8080 --cors
 3. **Look for initialization logs**:
 
 #### Expected Console Output:
+
 ```
 [App] Initializing offline-first system...
 [DBManager] Database initialized successfully
@@ -241,6 +259,7 @@ http-server -p 8080 --cors
 ```
 
 #### If you see errors:
+
 - ❌ Scripts not loading: Check file paths in index.html
 - ❌ "dbManager not found": Scripts loaded in wrong order
 - ❌ Service Worker errors: Check console for details
@@ -250,26 +269,31 @@ http-server -p 8080 --cors
 ### Step 8: Test Offline Streak Marking
 
 #### Setup:
+
 1. Go to main app: `http://localhost:8080/index.html`
 2. Create a goal or select existing one
 3. Open DevTools → **Network tab**
 4. Check **"Offline"** checkbox (simulates offline mode)
 
 #### Test:
+
 1. Try to mark today's streak
 2. Watch Console and UI
 
 #### Expected Results:
+
 - ✅ Console: `[App] Device offline or sync failed, queuing streak action...`
 - ✅ Console: `[OfflineQueue] Streak action queued for offline sync`
 - ✅ UI updates optimistically (day marked as completed)
 - ✅ Toast: "✓ Offline: Marked and queued for sync"
 
 #### Go Back Online:
+
 1. Uncheck **"Offline"** in Network tab
 2. Wait a few seconds
 
 #### Expected Results:
+
 - ✅ Console: `[OfflineQueue] Network back online, initiating sync...`
 - ✅ Console: `[OfflineQueue] ✓ Streak action synced successfully`
 - ✅ Toast: "Synced X offline action(s)"
@@ -279,6 +303,7 @@ http-server -p 8080 --cors
 ## 🔍 Debugging Tips
 
 ### Check Service Worker Console
+
 1. DevTools → **Application** tab
 2. Click **Service Workers**
 3. Click on **service-worker.js** link
@@ -286,19 +311,23 @@ http-server -p 8080 --cors
 5. Look for `[SW]` prefixed messages
 
 ### Check IndexedDB Data
+
 1. DevTools → **Application** tab
 2. **IndexedDB** → **StudyStreakTrackerDB**
 3. Click each store to view contents
 4. Verify data structure matches expected format
 
 ### Monitor Network Requests
+
 1. DevTools → **Network** tab
 2. Filter by "Fetch/XHR"
 3. Watch for API calls when syncing
 4. Check request/response payloads
 
 ### Check Console Logs
+
 Look for these prefixes:
+
 - `[App]` - Main application
 - `[DBManager]` - IndexedDB operations
 - `[OfflineQueue]` - Queue and sync
@@ -310,21 +339,25 @@ Look for these prefixes:
 ## ✅ Success Criteria Checklist
 
 ### Service Worker
+
 - [ ] Service Worker registers successfully
 - [ ] Shows as "activated and running" in DevTools
 - [ ] Can update/refresh without errors
 
 ### IndexedDB
+
 - [ ] All 4 stores created
 - [ ] Can add/retrieve/delete data
 - [ ] No errors in console
 
 ### Notifications
+
 - [ ] Permission granted
 - [ ] Test notification appears
 - [ ] Notification has icon and message
 
 ### Reminders
+
 - [ ] Can set reminder
 - [ ] Reminder stored in IndexedDB
 - [ ] Notification fires at correct time
@@ -332,12 +365,14 @@ Look for these prefixes:
 - [ ] Works offline ⭐
 
 ### Offline Queue
+
 - [ ] Can add actions offline
 - [ ] Duplicates prevented
 - [ ] Auto-syncs when online
 - [ ] Synced items removed from queue
 
 ### Main App
+
 - [ ] All systems initialize without errors
 - [ ] Can mark streak offline
 - [ ] Optimistic UI updates
@@ -348,7 +383,9 @@ Look for these prefixes:
 ## 🐛 Common Issues & Solutions
 
 ### Issue 1: Service Worker Not Registering
+
 **Solution:**
+
 ```powershell
 # Use http://localhost NOT file://
 # Clear cache: Ctrl+Shift+Delete
@@ -356,21 +393,27 @@ Look for these prefixes:
 ```
 
 ### Issue 2: Notifications Not Appearing
+
 **Solution:**
+
 1. Check system notifications are enabled (Windows settings)
 2. Check browser notification permissions
 3. Try `http://127.0.0.1:8080` instead of `localhost`
 4. Test in incognito mode
 
 ### Issue 3: Reminders Not Firing
+
 **Solution:**
+
 1. Verify Service Worker is active
 2. Check Service Worker console for errors
 3. Ensure reminder time is in future
 4. Browser might sleep Service Worker (keep DevTools open for testing)
 
 ### Issue 4: "dbManager not found"
+
 **Solution:**
+
 1. Check scripts load order in HTML:
    ```html
    <script src="db-manager.js"></script>
@@ -382,7 +425,9 @@ Look for these prefixes:
 3. Hard reload page (Ctrl+Shift+R)
 
 ### Issue 5: IndexedDB Quota Exceeded
+
 **Solution:**
+
 ```javascript
 // In test page, click "Clear All Data"
 // Or in DevTools: Application → IndexedDB → Right-click → Delete database
@@ -393,22 +438,25 @@ Look for these prefixes:
 ## 📊 Performance Monitoring
 
 ### Check Queue Status Programmatically
+
 Open Console and run:
+
 ```javascript
 // Check queue status
-await offlineQueue.getQueueStatus()
+await offlineQueue.getQueueStatus();
 
 // Check reminders
-await dbManager.getAll('reminders')
+await dbManager.getAll("reminders");
 
 // Check streak actions
-await dbManager.getAll('streakActions')
+await dbManager.getAll("streakActions");
 ```
 
 ### Monitor Sync Performance
+
 ```javascript
 // Watch sync events
-offlineQueue.syncAll().then(() => console.log('Sync complete'))
+offlineQueue.syncAll().then(() => console.log("Sync complete"));
 ```
 
 ---
@@ -430,6 +478,7 @@ offlineQueue.syncAll().then(() => console.log('Sync complete'))
 11. **Verify in IndexedDB** (streakActions empty)
 
 ### Expected Result:
+
 ✅ **Everything works seamlessly offline and syncs automatically!**
 
 ---
@@ -437,6 +486,7 @@ offlineQueue.syncAll().then(() => console.log('Sync complete'))
 ## 📞 Need Help?
 
 If tests fail, export logs:
+
 1. Click **"Export Logs"** button in test page
 2. Share the JSON file
 3. Also share:
@@ -449,6 +499,7 @@ If tests fail, export logs:
 ## 🚀 Next Steps After Testing
 
 Once all tests pass:
+
 1. ✅ Deploy to production (Vercel/Netlify)
 2. ✅ Test on real mobile devices
 3. ✅ Test notification on Android/iOS
